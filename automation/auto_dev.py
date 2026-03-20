@@ -150,13 +150,20 @@ class AutoDeveloper:
                 # Windows 下需要使用 claude.cmd
                 claude_cmd = "claude.cmd" if platform.system() == "Windows" else "claude"
 
+                # 为每次任务生成新的会话 ID，确保会话隔离
+                import uuid
+                session_id = str(uuid.uuid4())
+
                 cmd = [
                     claude_cmd,
                     "-p",  # print模式，非交互式
                     "--permission-mode", "dontAsk",  # 不询问权限
+                    "--no-session-persistence",  # 禁用会话持久化，每次都是新会话
+                    "--session-id", session_id,  # 使用新的会话ID
                     str(self.project_dir)
                 ]
 
+                self.log(f"会话 ID: {session_id}")
                 self.log(f"命令: {' '.join(cmd)}")
 
                 # 执行命令，通过 stdin 传递 prompt
@@ -175,6 +182,24 @@ class AutoDeveloper:
             except:
                 stdout = str(result.stdout)
                 stderr = str(result.stderr)
+
+            # 检测常见的错误（token 限制、会话过长等）
+            error_indicators = [
+                "token",
+                "too long",
+                "maximum",
+                "limit",
+                "context",
+                "memory",
+                "/clear"
+            ]
+
+            combined_output = (stdout + stderr).lower()
+            has_context_error = any(indicator in combined_output for indicator in error_indicators)
+
+            if has_context_error:
+                self.log("警告: 检测到会话长度或 token 限制相关错误")
+                self.log("这通常不影响执行，但如果频繁出现，请考虑减少任务复杂度")
 
             # 记录输出（限制行数避免日志过大）
             if stdout:
@@ -202,6 +227,11 @@ class AutoDeveloper:
                 return True
             else:
                 self.log(f"Claude Code 执行失败，返回码: {result.returncode}")
+
+                # 如果是上下文错误，提供有帮助的信息
+                if has_context_error:
+                    self.log("提示: 这可能是会话过长导致的，下次任务会使用新会话")
+
                 return False
 
         except subprocess.TimeoutExpired:
