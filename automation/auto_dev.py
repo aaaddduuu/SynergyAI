@@ -50,9 +50,17 @@ class AutoDeveloper:
         """记录日志"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_message = f"[{timestamp}] {message}"
-        print(log_message)
+
+        # 写入日志文件（使用UTF-8）
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(log_message + '\n')
+
+        # 打印到控制台（处理编码错误）
+        try:
+            print(log_message)
+        except UnicodeEncodeError:
+            # 如果控制台不支持某些字符，使用替代字符
+            print(log_message.encode('gbk', errors='replace').decode('gbk'))
 
     def get_next_task(self):
         """获取下一个待办任务"""
@@ -112,37 +120,82 @@ class AutoDeveloper:
         self.log("=" * 80)
 
         try:
-            # 构建 Claude Code 命令
-            cmd = [
-                "claude",
-                "--yes",
-                "--no-interactive",
-                "--allow-permissions",
-                "--prompt", prompt,
-                str(self.project_dir)
-            ]
+            # 将 prompt 写入临时文件（避免命令行编码问题）
+            import tempfile
+            import os
+            import platform
 
-            self.log(f"命令: {' '.join(cmd)}")
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', suffix='.txt', delete=False) as f:
+                f.write(prompt)
+                prompt_file = f.name
 
-            # 执行命令
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                timeout=3600  # 1小时超时
-            )
+            self.log(f"Prompt 已写入临时文件: {prompt_file}")
+            self.log(f"项目目录: {self.project_dir}")
 
-            # 记录输出
-            if result.stdout:
-                self.log("STDOUT:")
-                for line in result.stdout.split('\n'):
-                    self.log(f"  {line}")
+            # 设置环境变量（Windows 下需要 git-bash）
+            env = os.environ.copy()
+            if platform.system() == "Windows":
+                # 查找 bash.exe
+                import shutil
+                bash_path = shutil.which("bash.exe")
+                if bash_path:
+                    env["CLAUDE_CODE_GIT_BASH_PATH"] = bash_path
+                    self.log(f"设置 git-bash 路径: {bash_path}")
+                else:
+                    self.log("警告: 未找到 bash.exe，Claude Code 可能无法运行")
 
-            if result.stderr:
+            # 构建 Claude Code 命令（从文件读取prompt）
+            # 使用 stdin 传递 prompt 内容
+            with open(prompt_file, 'r', encoding='utf-8') as pf:
+                # Windows 下需要使用 claude.cmd
+                claude_cmd = "claude.cmd" if platform.system() == "Windows" else "claude"
+
+                cmd = [
+                    claude_cmd,
+                    "-p",  # print模式，非交互式
+                    "--permission-mode", "dontAsk",  # 不询问权限
+                    str(self.project_dir)
+                ]
+
+                self.log(f"命令: {' '.join(cmd)}")
+
+                # 执行命令，通过 stdin 传递 prompt
+                result = subprocess.run(
+                    cmd,
+                    stdin=pf,
+                    env=env,  # 传递环境变量
+                    capture_output=True,
+                    timeout=3600  # 1小时超时
+                )
+
+            # 解码输出
+            try:
+                stdout = result.stdout.decode('utf-8') if result.stdout else ''
+                stderr = result.stderr.decode('utf-8') if result.stderr else ''
+            except:
+                stdout = str(result.stdout)
+                stderr = str(result.stderr)
+
+            # 记录输出（限制行数避免日志过大）
+            if stdout:
+                self.log("STDOUT (前100行):")
+                for i, line in enumerate(stdout.split('\n')[:100]):
+                    if line.strip():
+                        self.log(f"  {line}")
+                if len(stdout.split('\n')) > 100:
+                    self.log(f"  ... (省略 {len(stdout.split('\n')) - 100} 行)")
+
+            if stderr:
                 self.log("STDERR:")
-                for line in result.stderr.split('\n'):
-                    self.log(f"  {line}")
+                for line in stderr.split('\n'):
+                    if line.strip():
+                        self.log(f"  {line}")
+
+            # 清理临时文件
+            try:
+                os.unlink(prompt_file)
+            except:
+                pass
 
             if result.returncode == 0:
                 self.log("Claude Code 执行成功")
@@ -156,6 +209,8 @@ class AutoDeveloper:
             return False
         except Exception as e:
             self.log(f"调用 Claude Code 异常: {e}")
+            import traceback
+            self.log(f"详细错误: {traceback.format_exc()}")
             return False
 
     def mark_task_in_progress(self, feature_id: str):
@@ -310,12 +365,12 @@ class AutoDeveloper:
         Args:
             max_iterations: 最大迭代次数，None 表示执行完所有任务
         """
-        self.log("\n" + "🚀" * 40)
+        self.log("\n" + "=" * 80)
         self.log("SynergyAI 自动化开发系统启动")
         self.log(f"项目目录: {self.project_dir}")
         self.log(f"日志文件: {self.log_file}")
         self.log(f"开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        self.log("🚀" * 40 + "\n")
+        self.log("=" * 80 + "\n")
 
         # 打印初始进度
         stats = self.feature_list.get_statistics()

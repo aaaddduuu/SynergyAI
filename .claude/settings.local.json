@@ -7,7 +7,13 @@
       "Bash(git push:*)",
       "Bash(git branch:*)",
       "Bash(python:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(auto_dev:*)",
+      "Bash(where:*)",
+      "Bash(claude.cmd:*)",
+      "Bash(tail:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)"
     ]
   }
 }
