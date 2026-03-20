@@ -34,6 +34,10 @@ wheels/
 logs/
 *.log
 
+# Auto Dev Loop
+*.pid
+.server.pid
+
 # Database
 data/*.db
 data/*.sqlite

@@ -1,0 +1,405 @@
+{
+  "project_name": "SynergyAI",
+  "project_description": "多智能体协作系统，通过 AI 团队协同工作产生 1+1>2 的效应",
+  "version": "1.0.0",
+  "last_updated": "2025-03-21T01:00:00Z",
+  "features": [
+    {
+      "id": "feat-001",
+      "category": "bug_fix",
+      "priority": "high",
+      "title": "修复配置加载 Bug",
+      "description": "前端加载配置时偶尔报错，需要修复配置加载逻辑",
+      "status": "pending",
+      "assignee_role": "dev",
+      "steps": [
+        "1. 打开浏览器访问 http://localhost:8000",
+        "2. 点击设置按钮（⚙️）",
+        "3. 观察是否有配置加载错误",
+        "4. 检查 /api/config 响应是否正常",
+        "5. 验证所有字段都有默认值"
+      ],
+      "passes": false,
+      "notes": "已在代码层面修复，需要前端验证"
+    },
+    {
+      "id": "feat-002",
+      "category": "deployment",
+      "priority": "high",
+      "title": "Docker 部署配置",
+      "description": "创建 Dockerfile 和 docker-compose.yml，支持容器化部署",
+      "status": "pending",
+      "assignee_role": "architect",
+      "steps": [
+        "1. 创建 Dockerfile",
+        "2. 创建 docker-compose.yml",
+        "3. 配置环境变量",
+        "4. 测试容器构建",
+        "5. 验证容器运行",
+        "6. 编写部署文档"
+      ],
+      "passes": false,
+      "notes": "需要包含 Python、数据库、前端服务"
+    },
+    {
+      "id": "feat-003",
+      "category": "documentation",
+      "priority": "medium",
+      "title": "Swagger API 文档",
+      "description": "集成 Swagger/OpenAPI 生成 API 文档",
+      "status": "pending",
+      "assignee_role": "dev",
+      "steps": [
+        "1. 安装 FastAPI Swagger 依赖",
+        "2. 配置 API 文档元数据",
+        "3. 为所有端点添加文档注释",
+        "4. 测试文档访问 /docs",
+        "5. 验证文档完整性"
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "feat-004",
+      "category": "ui_enhancement",
+      "priority": "medium",
+      "title": "前端 Loading 状态优化",
+      "description": "添加加载动画和骨架屏，优化用户体验",
+      "status": "pending",
+      "assignee_role": "dev",
+      "steps": [
+        "1. 创建加载动画组件",
+        "2. 为消息列表添加骨架屏",
+        "3. 为任务列表添加骨架屏",
+        "4. 添加进度指示器",
+        "5. 测试加载状态显示"
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "feat-005",
+      "category": "testing",
+      "priority": "medium",
+      "title": "单元测试覆盖",
+      "description": "为核心模块编写单元测试",
+      "status": "pending",
+      "assignee_role": "qa",
+      "steps": [
+        "1. 为 core/agents.py 编写测试",
+        "2. 为 core/orchestrator.py 编写测试",
+        "3. 为 core/storage.py 编写测试",
+        "4. 为 core/model_config.py 编写测试",
+        "5. 确保测试覆盖率达到 60% 以上"
+      ],
+      "passes": false,
+      "notes": "使用 pytest 框架"
+    },
+    {
+      "id": "feat-006",
+      "category": "refactoring",
+      "priority": "low",
+      "title": "前端 JS/CSS 分离",
+      "description": "将前端代码分离到独立的 JS 和 CSS 文件",
+      "status": "pending",
+      "assignee_role": "dev",
+      "steps": [
+        "1. 创建 static/js/ 目录",
+        "2. 创建 static/css/ 目录",
+        "3. 将 JavaScript 代码提取到 app.js",
+        "4. 将 CSS 样式提取到 style.css",
+        "5. 更新 index.html 引用",
+        "6. 测试功能完整性"
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "feat-007",
+      "category": "refactoring",
+      "priority": "low",
+      "title": "TypeScript 迁移",
+      "description": "将 Python 代码迁移到 TypeScript（可选）",
+      "status": "pending",
+      "assignee_role": "architect",
+      "steps": [
+        "1. 配置 TypeScript 环境",
+        "2. 为核心模块添加类型注解",
+        "3. 配置 mypy 检查",
+        "4. 更新构建流程",
+        "5. 测试类型检查"
+      ],
+      "passes": false,
+      "notes": "长期计划，低优先级"
+    },
+    {
+      "id": "feat-008",
+      "category": "feature",
+      "priority": "medium",
+      "title": "用户认证系统",
+      "description": "实现用户注册、登录、权限管理功能",
+      "status": "pending",
+      "assignee_role": "dev",
+      "steps": [
+        "1. 设计用户数据模型",
+        "2. 实现注册 API",
+        "3. 实现登录 API（JWT）",
+        "4. 添加权限装饰器",
+        "5. 前端登录页面",
+        "6. 测试认证流程"
+      ],
+      "passes": false,
+      "notes": "需要密码加密、会话管理"
+    },
+    {
+      "id": "feat-009",
+      "category": "feature",
+      "priority": "low",
+      "title": "多团队/多项目支持",
+      "description": "支持创建多个团队和项目",
+      "status": "pending",
+      "assignee_role": "architect",
+      "steps": [
+        "1. 设计多团队数据模型",
+        "2. 添加团队管理 API",
+        "3. 添加项目管理 API",
+        "4. 实现团队切换功能",
+        "5. 更新权限系统",
+        "6. 前端团队选择界面"
+      ],
+      "passes": false,
+      "notes": "需要重新设计数据模型"
+    },
+    {
+      "id": "feat-010",
+      "category": "feature",
+      "priority": "low",
+      "title": "自定义智能体插件",
+      "description": "允许用户自定义 Agent 角色和技能",
+      "status": "pending",
+      "assignee_role": "architect",
+      "steps": [
+        "1. 设计插件系统架构",
+        "2. 创建 Agent 定义格式",
+        "3. 实现插件加载机制",
+        "4. 插件管理 UI",
+        "5. 插件测试功能",
+        "6. 文档和示例"
+      ],
+      "passes": false,
+      "notes": "高级功能"
+    },
+    {
+      "id": "feat-011",
+      "category": "feature",
+      "priority": "low",
+      "title": "移动端适配",
+      "description": "优化移动设备显示和交互",
+      "status": "pending",
+      "assignee_role": "dev",
+      "steps": [
+        "1. 添加移动端视口配置",
+        "2. 优化响应式布局",
+        "3. 添加触摸事件支持",
+        "4. 优化移动端性能",
+        "5. 测试主流移动设备"
+      ],
+      "passes": false,
+      "notes": "优先适配手机和平板"
+    },
+    {
+      "id": "feat-012",
+      "category": "feature",
+      "priority": "low",
+      "title": "统计图表可视化",
+      "description": "添加团队效率、任务统计的可视化图表",
+      "status": "pending",
+      "assignee_role": "dev",
+      "steps": [
+        "1. 选择图表库（Chart.js/ECharts）",
+        "2. 设计统计数据 API",
+        "3. 实现任务进度图表",
+        "4. 实现 Agent 效率图表",
+        "5. 添加时间线视图",
+        "6. 测试数据准确性"
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "feat-013",
+      "category": "improvement",
+      "priority": "high",
+      "title": "优化 Agent 增量工作流程",
+      "description": "确保 Agent 严格遵循增量工作原则，一次只处理一个任务",
+      "status": "pending",
+      "assignee_role": "ba",
+      "steps": [
+        "1. 审查当前 Agent 提示词",
+        "2. 强化增量工作指令",
+        "3. 添加任务检查机制",
+        "4. 测试 Agent 行为",
+        "5. 验证一次只处理一个任务"
+      ],
+      "passes": false,
+      "notes": "参考 Anthropic 文章最佳实践"
+    },
+    {
+      "id": "feat-014",
+      "category": "improvement",
+      "priority": "high",
+      "title": "增强 QA 测试验证能力",
+      "description": "确保 QA Agent 真正执行端到端测试，而不只看代码",
+      "status": "pending",
+      "assignee_role": "qa",
+      "steps": [
+        "1. 审查 QA Agent 提示词",
+        "2. 添加测试流程要求",
+        "3. 创建测试检查清单",
+        "4. 测试 QA Agent 验证功能",
+        "5. 优化测试报告输出"
+      ],
+      "passes": false,
+      "notes": "参考 Anthropic 文章测试部分"
+    },
+    {
+      "id": "feat-015",
+      "category": "automation",
+      "priority": "medium",
+      "title": "完善自动化开发循环脚本",
+      "description": "测试并优化 automation/run_dev_loop.sh 脚本",
+      "status": "pending",
+      "assignee_role": "dev",
+      "steps": [
+        "1. 测试脚本路径解析",
+        "2. 测试服务器启动逻辑",
+        "3. 测试 Claude Code 调用",
+        "4. 测试自动提交和推送",
+        "5. 测试日志记录功能",
+        "6. 优化错误处理"
+      ],
+      "passes": false,
+      "notes": "需要 Claude Code CLI 安装"
+    },
+    {
+      "id": "feat-016",
+      "category": "documentation",
+      "priority": "medium",
+      "title": "完善自动化文档",
+      "description": "补充自动化系统的使用文档和示例",
+      "status": "pending",
+      "assignee_role": "ba",
+      "steps": [
+        "1. 补充快速开始指南",
+        "2. 添加常见问题 FAQ",
+        "3. 添加故障排除指南",
+        "4. 创建视频教程脚本",
+        "5. 添加最佳实践说明"
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "feat-017",
+      "category": "quality",
+      "priority": "medium",
+      "title": "性能优化",
+      "description": "优化系统性能，减少响应时间",
+      "status": "pending",
+      "assignee_role": "dev",
+      "steps": [
+        "1. 性能分析（profiling）",
+        "2. 数据库查询优化",
+        "3. WebSocket 消息优化",
+        "4. 前端资源加载优化",
+        "5. 添加缓存机制",
+        "6. 压力测试验证"
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "feat-018",
+      "category": "quality",
+      "priority": "low",
+      "title": "安全性增强",
+      "description": "加强系统安全性，防止常见攻击",
+      "status": "pending",
+      "assignee_role": "architect",
+      "steps": [
+        "1. 添加 CORS 策略",
+        "2. 实现 CSRF 保护",
+        "3. 添加输入验证",
+        "4. 实现 rate limiting",
+        "5. 添加安全日志",
+        "6. 安全测试"
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "feat-019",
+      "category": "feature",
+      "priority": "medium",
+      "title": "功能清单系统集成",
+      "description": "将 feature_list.json 集成到 Agent 系统中",
+      "status": "pending",
+      "assignee_role": "dev",
+      "steps": [
+        "1. 创建 Feature 数据模型",
+        "2. 实现 Feature 管理类",
+        "3. 在初始化时创建功能清单",
+        "4. Agent 可以读取和更新功能清单",
+        "5. 自动选择下一个待办功能",
+        "6. 生成进度报告"
+      ],
+      "passes": false,
+      "notes": "参考 Anthropic 文章 feature list 部分"
+    },
+    {
+      "id": "feat-020",
+      "category": "testing",
+      "priority": "medium",
+      "title": "集成测试覆盖",
+      "description": "添加端到端集成测试",
+      "status": "pending",
+      "assignee_role": "qa",
+      "steps": [
+        "1. 设计测试用例",
+        "2. 使用 pytest 编写集成测试",
+        "3. 测试 WebSocket 连接",
+        "4. 测试多 Agent 协作",
+        "5. 测试任务流转",
+        "6. 测试持久化功能"
+      ],
+      "passes": false,
+      "notes": ""
+    }
+  ],
+  "statistics": {
+    "total": 20,
+    "by_status": {
+      "pending": 20,
+      "in_progress": 0,
+      "review": 0,
+      "done": 0
+    },
+    "by_priority": {
+      "high": 5,
+      "medium": 9,
+      "low": 6
+    },
+    "by_category": {
+      "bug_fix": 1,
+      "deployment": 1,
+      "documentation": 2,
+      "ui_enhancement": 1,
+      "testing": 2,
+      "refactoring": 2,
+      "feature": 5,
+      "improvement": 3,
+      "automation": 1,
+      "quality": 2
+    }
+  }
+}

@@ -3,6 +3,7 @@ import json
 from typing import TypedDict, Annotated, Sequence, Optional, Literal, List, Dict, Any
 from datetime import datetime
 import operator
+from pathlib import Path
 
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
@@ -11,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from core.storage import Session, Message, Task, TaskState, AgentRole, MessageType
 from core.agents import get_agent_prompt, AGENT_SYSTEM_PROMPTS, TaskOperation
 from core.model_config import model_config_manager, create_llm_for_config
+from core.features import FeatureList
 
 
 class AgentState(TypedDict):
@@ -22,11 +24,11 @@ class AgentState(TypedDict):
 
 
 class MultiAgentOrchestrator:
-    def __init__(self, llm=None, model: str = "gpt-4", api_key: str = None, base_url: str = None):
+    def __init__(self, llm=None, model: str = "gpt-4", api_key: str = None, base_url: str = None, project_dir: str = None):
         self.model = model
         self.api_key = api_key
         self.base_url = base_url
-        
+
         if llm:
             self.llm = llm
         else:
@@ -41,7 +43,10 @@ class MultiAgentOrchestrator:
                     model=model,
                     api_key=api_key or "sk-dummy"
                 )
-        
+
+        # 初始化功能清单
+        self.feature_list = FeatureList(project_dir)
+
         self.graph = self._build_graph()
     
     def _build_graph(self) -> StateGraph:
@@ -137,24 +142,41 @@ class MultiAgentOrchestrator:
         progress_summary = session.get_progress_summary()
         task_info = f"\n## 📋 项目进度摘要\n{progress_summary}\n"
 
+        # 添加功能清单信息（帮助 Agent 了解整体功能需求）
+        feature_summary = self.feature_list.get_progress_summary()
+        task_info += f"\n{feature_summary}\n"
+
+        # 显示下一个待办功能
+        next_feature = self.feature_list.get_next_feature(role.value if role else None)
+        if next_feature:
+            priority_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(next_feature.priority, "⚪")
+            task_info += f"\n## 🎯 建议下一个功能\n"
+            task_info += f"{priority_icon} **{next_feature.title}**\n"
+            task_info += f"- 描述: {next_feature.description}\n"
+            task_info += f"- 负责人: {next_feature.assignee_role}\n"
+            task_info += f"- 状态: {next_feature.status}\n"
+        elif role == AgentRole.PM:
+            task_info += f"\n## 🎯 建议下一步\n"
+            task_info += "请查看功能清单（feature_list.json）选择下一个待开发功能。\n"
+
+        # 显示当前任务列表
         if not session.tasks:
             task_info += "\n## 当前任务列表\n暂无任务"
-            return task_info
-
-        if role == AgentRole.DEV:
-            task_info += "\n## 你的任务列表\n"
-            for task in session.tasks.values():
-                if task.assignee_role == AgentRole.DEV:
-                    task_info += f"- [{task.state.value}] {task.title}\n"
-        elif role == AgentRole.QA:
-            task_info += "\n## 待测试任务\n"
-            for task in session.tasks.values():
-                if task.state == TaskState.REVIEW:
-                    task_info += f"- {task.title} (开发: {task.assignee})\n"
         else:
-            task_info += "\n## 当前任务列表\n"
-            for task in session.tasks.values():
-                task_info += f"- [{task.state.value}] {task.title} (负责人: {task.assignee or '未分配'})\n"
+            if role == AgentRole.DEV:
+                task_info += "\n## 你的任务列表\n"
+                for task in session.tasks.values():
+                    if task.assignee_role == AgentRole.DEV:
+                        task_info += f"- [{task.state.value}] {task.title}\n"
+            elif role == AgentRole.QA:
+                task_info += "\n## 待测试任务\n"
+                for task in session.tasks.values():
+                    if task.state == TaskState.REVIEW:
+                        task_info += f"- {task.title} (开发: {task.assignee})\n"
+            else:
+                task_info += "\n## 当前任务列表\n"
+                for task in session.tasks.values():
+                    task_info += f"- [{task.state.value}] {task.title} (负责人: {task.assignee or '未分配'})\n"
 
         return task_info
     
