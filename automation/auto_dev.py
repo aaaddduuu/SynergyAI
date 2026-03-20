@@ -234,11 +234,41 @@ class AutoDeveloper:
             是否成功
         """
         self.log("-" * 80)
-        self.log("检查代码变更...")
+        self.log("检查代码变更和未推送的提交...")
         self.log("-" * 80)
 
         try:
-            # 检查是否有变更
+            # 1. 先检查是否有未推送的提交
+            result = subprocess.run(
+                ["git", "log", "origin/main..HEAD", "--oneline"],
+                cwd=self.project_dir,
+                capture_output=True,
+                text=True
+            )
+
+            unpushed_commits = result.stdout.strip()
+            if unpushed_commits:
+                self.log(f"发现 {len(unpushed_commits.splitlines())} 个未推送的提交:")
+                for line in unpushed_commits.splitlines()[:5]:  # 只显示前5个
+                    self.log(f"  - {line}")
+
+                # 直接推送未推送的提交
+                self.log("推送未推送的提交到远程...")
+                result = subprocess.run(
+                    ["git", "push", "origin", "main"],
+                    cwd=self.project_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+
+                if result.returncode == 0:
+                    self.log("成功推送到远程仓库")
+                else:
+                    self.log(f"推送失败: {result.stderr}")
+                    return False
+
+            # 2. 检查工作区是否有新的变更
             result = subprocess.run(
                 ["git", "diff", "--quiet"],
                 cwd=self.project_dir,
@@ -246,10 +276,10 @@ class AutoDeveloper:
             )
 
             if result.returncode == 0:
-                self.log("没有代码变更，跳过提交")
+                self.log("工作区没有新的代码变更")
                 return True
 
-            # 查看变更
+            # 3. 有新的变更，查看并提交
             result = subprocess.run(
                 ["git", "status", "--short"],
                 cwd=self.project_dir,
