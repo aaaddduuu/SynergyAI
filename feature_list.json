@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T01:29:13.649040",
+  "last_updated": "2026-03-21T01:36:42.723850",
   "features": [
     {
       "id": "feat-001",
@@ -30,7 +30,7 @@
       "priority": "high",
       "title": "Docker 部署配置",
       "description": "创建 Dockerfile 和 docker-compose.yml，支持容器化部署",
-      "status": "pending",
+      "status": "in_progress",
       "assignee_role": "architect",
       "steps": [
         "1. 创建 Dockerfile",
@@ -43,7 +43,7 @@
       "passes": false,
       "notes": "需要包含 Python、数据库、前端服务",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:21:35.556478"
+      "updated_at": "2026-03-21T01:36:42.723484"
     },
     {
       "id": "feat-003",
@@ -419,8 +419,8 @@
   "statistics": {
     "total": 20,
     "by_status": {
-      "pending": 19,
-      "in_progress": 0,
+      "pending": 18,
+      "in_progress": 1,
       "review": 0,
       "done": 1
     },
