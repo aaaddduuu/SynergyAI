@@ -157,7 +157,7 @@ class AutoDeveloper:
                 cmd = [
                     claude_cmd,
                     "-p",  # print模式，非交互式
-                    "--permission-mode", "dontAsk",  # 不询问权限
+                    "--permission-mode", "acceptEdits",  # 自动接受编辑操作
                     "--no-session-persistence",  # 禁用会话持久化，每次都是新会话
                     "--session-id", session_id,  # 使用新的会话ID
                     str(self.project_dir)

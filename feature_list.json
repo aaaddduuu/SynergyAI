@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T01:40:05.628682",
+  "last_updated": "2026-03-21T01:45:43.840979",
   "features": [
     {
       "id": "feat-001",
@@ -30,7 +30,7 @@
       "priority": "high",
       "title": "Docker 部署配置",
       "description": "创建 Dockerfile 和 docker-compose.yml，支持容器化部署",
-      "status": "done",
+      "status": "pending",
       "assignee_role": "architect",
       "steps": [
         "1. 创建 Dockerfile",
@@ -43,7 +43,7 @@
       "passes": true,
       "notes": "需要包含 Python、数据库、前端服务",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:37:14.862805"
+      "updated_at": "2026-03-21T01:45:43.839469"
     },
     {
       "id": "feat-003",
@@ -256,7 +256,7 @@
       "priority": "high",
       "title": "优化 Agent 增量工作流程",
       "description": "确保 Agent 严格遵循增量工作原则，一次只处理一个任务",
-      "status": "done",
+      "status": "pending",
       "assignee_role": "ba",
       "steps": [
         "1. 审查当前 Agent 提示词",
@@ -268,7 +268,7 @@
       "passes": true,
       "notes": "参考 Anthropic 文章最佳实践",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:38:08.560074"
+      "updated_at": "2026-03-21T01:45:43.839469"
     },
     {
       "id": "feat-014",
@@ -276,7 +276,7 @@
       "priority": "high",
       "title": "增强 QA 测试验证能力",
       "description": "确保 QA Agent 真正执行端到端测试，而不只看代码",
-      "status": "done",
+      "status": "pending",
       "assignee_role": "qa",
       "steps": [
         "1. 审查 QA Agent 提示词",
@@ -288,7 +288,7 @@
       "passes": true,
       "notes": "参考 Anthropic 文章测试部分",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:40:05.628682"
+      "updated_at": "2026-03-21T01:45:43.840979"
     },
     {
       "id": "feat-015",
@@ -419,10 +419,10 @@
   "statistics": {
     "total": 20,
     "by_status": {
-      "pending": 16,
+      "pending": 19,
       "in_progress": 0,
       "review": 0,
-      "done": 4
+      "done": 1
     },
     "by_priority": {
       "high": 4,
