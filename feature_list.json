@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T01:28:54.978199",
+  "last_updated": "2026-03-21T01:29:13.649040",
   "features": [
     {
       "id": "feat-001",
@@ -22,7 +22,7 @@
       "passes": true,
       "notes": "已在代码层面修复，需要前端验证",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:28:54.977692"
+      "updated_at": "2026-03-21T01:29:13.649040"
     },
     {
       "id": "feat-002",
