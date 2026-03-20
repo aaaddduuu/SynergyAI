@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/index.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#667aea",
+                        "secondary": "#764ba2",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#111421",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "system-ui", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        @keyframes slide-in {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in { animation: slide-in 0.3s ease-out; }
+    </style>
+    <title>AI 协作团队</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
+    <div class="flex flex-col h-screen overflow-hidden">
+        <!-- Header -->
+        <header class="h-[60px] shrink-0 bg-gradient-to-r from-primary to-secondary px-6 flex items-center justify-between shadow-md z-10">
+            <div class="flex items-center gap-4">
+                <h1 class="text-white text-xl font-bold tracking-tight">🤖 AI 协作团队</h1>
+                <div class="h-6 w-[1px] bg-white/20 mx-2"></div>
+                <div class="flex items-center gap-3">
+                    <span class="text-white/90 text-sm font-medium">对话轮数: <span id="turnCount">0</span></span>
+                    <span id="sessionStatus" class="bg-emerald-500/20 text-emerald-100 text-xs px-2 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        进行中
+                    </span>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="wsStatus" class="flex items-center gap-1.5 text-white/70 text-xs">
+                    <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                    <span>离线</span>
+                </div>
+                <button onclick="showConfigModal()" class="flex items-center gap-2 px-4 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm font-medium border border-white/20">
+                    <span class="material-symbols-outlined text-[18px]">settings</span>
+                    配置
+                </button>
+                <button onclick="createSession()" class="flex items-center gap-2 px-4 py-1.5 bg-white text-primary hover:bg-white/90 rounded-lg transition-colors text-sm font-bold shadow-sm">
+                    <span class="material-symbols-outlined text-[18px]">add</span>
+                    新建项目
+                </button>
+                <div class="ml-2 w-8 h-8 rounded-full bg-white/20 border border-white/30 flex items-center justify-center text-white overflow-hidden">
+                    <span class="material-symbols-outlined">person</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <main class="flex flex-1 overflow-hidden">
+            <!-- Left Sidebar (280px) -->
+            <aside class="w-[280px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+                    <!-- Team Section -->
+                    <section>
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[18px]">group</span>
+                                团队成员
+                            </h2>
+                        </div>
+                        <div class="grid grid-cols-1 gap-1">
+                            <div onclick="selectAgent('hr')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                                <div class="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xs border border-rose-200">HR</div>
+                                <span class="text-sm font-medium">招聘专家</span>
+                            </div>
+                            <div onclick="selectAgent('pm')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                                <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs border border-blue-200">PM</div>
+                                <span class="text-sm font-medium">产品经理</span>
+                            </div>
+                            <div onclick="selectAgent('ba')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                                <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-xs border border-amber-200">BA</div>
+                                <span class="text-sm font-medium">商业分析</span>
+                            </div>
+                            <div onclick="selectAgent('dev')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                                <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs border border-indigo-200">Dev</div>
+                                <span class="text-sm font-medium">核心开发</span>
+                            </div>
+                            <div onclick="selectAgent('qa')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                                <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs border border-emerald-200">QA</div>
+                                <span class="text-sm font-medium">质量保证</span>
+                            </div>
+                            <div onclick="selectAgent('architect')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                                <div class="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs border border-purple-200">Arc</div>
+                                <span class="text-sm font-medium">系统架构</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Task List -->
+                    <section>
+                        <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[18px]">assignment</span>
+                            任务列表
+                        </h2>
+                        <div id="taskList" class="space-y-2">
+                            <div class="text-center py-4 text-slate-400 text-sm">暂无任务</div>
+                        </div>
+                        <button onclick="showAddTaskModal()" class="w-full mt-4 flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-primary hover:border-primary transition-all text-sm font-medium">
+                            <span class="material-symbols-outlined text-[18px]">add</span>
+                            添加任务
+                        </button>
+                    </section>
+
+                    <!-- Session History -->
+                    <section>
+                        <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[18px]">history</span>
+                            历史会话
+                        </h2>
+                        <div id="sessionList" class="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                            <div class="text-center py-4 text-slate-400 text-xs">暂无历史会话</div>
+                        </div>
+                        <button onclick="loadSessionList()" class="w-full mt-2 flex items-center justify-center gap-1 p-2 text-slate-400 hover:text-primary transition-colors text-xs">
+                            <span class="material-symbols-outlined text-[14px]">refresh</span>
+                            刷新
+                        </button>
+                    </section>
+                </div>
+            </aside>
+
+            <!-- Center Chat Area -->
+            <section class="flex-1 flex flex-col bg-slate-50 dark:bg-slate-950">
+                <!-- Messages container -->
+                <div id="messages" class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                    <!-- Empty State -->
+                    <div id="emptyState" class="flex-1 flex flex-col items-center justify-center p-8">
+                        <div class="max-md w-full flex flex-col items-center text-center">
+                            <div class="relative mb-8">
+                                <div class="absolute -inset-4 bg-primary/10 rounded-full blur-2xl"></div>
+                                <div class="relative bg-white dark:bg-slate-900 size-24 rounded-3xl shadow-xl flex items-center justify-center border border-slate-100 dark:border-slate-800">
+                                    <span class="material-symbols-outlined text-primary text-5xl">forum</span>
+                                </div>
+                            </div>
+                            <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-3 tracking-tight">开始与AI团队交流</h1>
+                            <p class="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
+                                欢迎来到您的协作空间。连接您的 AI 代理，开始在您的下一个伟大创意上进行协作。
+                            </p>
+                            <div class="flex flex-col sm:flex-row gap-3">
+                                <button onclick="createSession()" class="px-8 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/25 hover:scale-[1.02] active:scale-[0.98] transition-all">
+                                    创建新项目
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Typing Indicator -->
+                    <div id="typingIndicator" class="hidden flex items-start gap-4 max-w-[85%]">
+                        <div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex-shrink-0 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-slate-500 animate-pulse">smart_toy</span>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-200 dark:border-slate-700">
+                            <div class="flex gap-1">
+                                <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
+                                <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
+                                <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Input Area -->
+                <div class="h-[80px] bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 flex items-center gap-4">
+                    <button class="text-slate-400 hover:text-primary transition-colors">
+                        <span class="material-symbols-outlined">attach_file</span>
+                    </button>
+                    <div class="flex-1 relative">
+                        <input id="messageInput" class="w-full h-11 bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 text-sm focus:ring-2 focus:ring-primary/50 transition-all" placeholder="输入消息，与团队进行协作..." type="text" onkeypress="handleKeyPress(event)" oninput="handleTyping()"/>
+                        <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-slate-400 text-[20px] cursor-pointer hover:text-primary">mood</span>
+                        </div>
+                    </div>
+                    <button id="sendBtn" onclick="sendMessage()" class="bg-primary hover:bg-primary/90 text-white px-6 h-11 rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span id="sendIcon" class="material-symbols-outlined text-[20px]">send</span>
+                        <span id="sendText">发送</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Sidebar (Project Insights) -->
+            <aside class="w-[300px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 hidden xl:flex flex-col p-6 overflow-y-auto custom-scrollbar">
+                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">insights</span>
+                    项目洞察
+                </h2>
+                <div class="space-y-6">
+                    <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
+                        <p class="text-xs text-slate-400 font-bold mb-2">开发进度</p>
+                        <div class="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div id="progressBar" class="bg-primary h-full w-[0%] rounded-full transition-all"></div>
+                        </div>
+                        <div class="flex justify-between mt-2">
+                            <span id="progressText" class="text-[10px] font-bold text-primary">0% 完成</span>
+                            <span class="text-[10px] text-slate-400">进行中</span>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <p class="text-xs text-slate-400 font-bold">最近活动</p>
+                        <div id="activityList" class="space-y-3">
+                            <div class="flex gap-3 relative">
+                                <div class="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0 z-10"></div>
+                                <div>
+                                    <p class="text-xs font-bold">等待项目创建</p>
+                                    <p class="text-[10px] text-slate-400">请创建新项目开始</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="aiSuggestion" class="p-4 bg-primary/5 rounded-xl border border-primary/10 hidden">
+                    <p class="text-xs font-bold text-primary mb-2 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">auto_awesome</span>
+                        AI 建议
+                    </p>
+                    <p id="suggestionText" class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+                        当前开发环节与测试环节存在 4 小时的滞后，建议提前分配 QA 资源进入 API 开发阶段。
+                    </p>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Config Modal -->
+    <div id="configModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="hideConfigModal()"></div>
+        <div class="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-primary/20 overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-primary/10 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">settings_input_component</span>
+                        LLM 配置
+                    </h3>
+                    <button onclick="hideConfigModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="p-6 border-b border-slate-200 dark:border-slate-700">
+                <h4 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">默认配置</h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">模型供应商</label>
+                        <div class="relative">
+                            <select id="providerSelect" onchange="updateModelOptions()" class="w-full h-12 pl-4 pr-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white appearance-none focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all">
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="zhipu">智谱AI (Zhipu)</option>
+                                <option value="custom">自定义</option>
+                            </select>
+                            <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">模型选择</label>
+                        <div class="relative">
+                            <select id="modelSelect" class="w-full h-12 pl-4 pr-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white appearance-none focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all">
+                            </select>
+                            <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+                        </div>
+                    </div>
+                    <div class="space-y-2 col-span-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">API Key</label>
+                        <div class="relative">
+                            <input id="apiKeyInput" class="w-full h-12 pl-11 pr-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" placeholder="sk-xxx / ant-xxx / xxxxxx" type="password"/>
+                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">vpn_key</span>
+                        </div>
+                    </div>
+                    <div class="space-y-2 col-span-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Base URL <span class="text-slate-400 font-normal">(可选)</span></label>
+                        <div class="relative">
+                            <input id="baseUrlInput" class="w-full h-12 pl-11 pr-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" placeholder="留空使用默认地址" type="text"/>
+                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">link</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-sm font-bold text-slate-500 uppercase tracking-wider">角色独立配置</h4>
+                    <button onclick="expandAllAgents()" class="text-xs text-primary hover:underline">展开全部</button>
+                </div>
+                <div id="agentConfigList" class="space-y-4">
+                    <!-- Agent configs will be loaded here -->
+                </div>
+            </div>
+            
+            <div class="p-6 bg-slate-50 dark:bg-slate-800/50 flex gap-3 justify-end sticky bottom-0">
+                <button onclick="hideConfigModal()" class="px-6 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-sm">
+                    取消
+                </button>
+                <button onclick="saveAllConfig()" class="px-8 py-2.5 rounded-lg bg-gradient-to-r from-primary to-[#8a99f0] text-white font-bold shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all text-sm">
+                    保存全部配置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Task Modal -->
+    <div id="addTaskModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="hideAddTaskModal()"></div>
+        <div class="relative bg-white dark:bg-slate-900 w-full max-w-[560px] rounded-xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+            <div class="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-900 dark:text-slate-100">添加新任务</h2>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">为团队协作创建新的任务条目</p>
+                </div>
+                <button onclick="hideAddTaskModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="p-8 space-y-6">
+                <div class="flex flex-col gap-2">
+                    <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">任务标题</label>
+                    <input id="taskTitle" class="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-slate-400" placeholder="请输入任务名称" type="text"/>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">任务描述</label>
+                    <textarea id="taskDesc" class="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-slate-400 resize-none" placeholder="详细说明任务要求..." rows="4"></textarea>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">负责人</label>
+                        <div class="relative">
+                            <select id="taskAssignee" class="w-full appearance-none px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all pr-10">
+                                <option disabled selected value="">选择团队角色</option>
+                                <option value="dev">开发工程师</option>
+                                <option value="qa">测试工程师</option>
+                                <option value="ba">业务分析师</option>
+                                <option value="architect">架构师</option>
+                                <option value="pm">项目经理</option>
+                            </select>
+                            <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">expand_more</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">优先级</label>
+                        <div class="flex gap-2">
+                            <label class="flex-1 cursor-pointer">
+                                <input name="priority" type="radio" value="low" class="sr-only"/>
+                                <div class="priority-option flex items-center justify-center py-2 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-slate-50 dark:bg-slate-800 transition-all">
+                                    低
+                                </div>
+                            </label>
+                            <label class="flex-1 cursor-pointer">
+                                <input name="priority" type="radio" value="medium" checked class="sr-only"/>
+                                <div class="priority-option flex items-center justify-center py-2 px-3 border border-primary dark:border-primary rounded-lg text-sm bg-primary/10 text-primary font-medium">
+                                    中
+                                </div>
+                            </label>
+                            <label class="flex-1 cursor-pointer">
+                                <input name="priority" type="radio" value="high" class="sr-only"/>
+                                <div class="priority-option flex items-center justify-center py-2 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-slate-50 dark:bg-slate-800 transition-all">
+                                    高
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="px-8 py-6 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-4">
+                <button onclick="hideAddTaskModal()" class="px-6 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    取消
+                </button>
+                <button onclick="addTask()" class="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-semibold text-sm shadow-lg shadow-primary/20 transition-all flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[20px]">add</span>
+                    添加任务
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-[60] space-y-2"></div>
+
+    <script>
+        let currentSessionId = null;
+        let selectedAgent = null;
+        let ws = null;
+        let wsConnected = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        let typingTimeout = null;
+
+        const agentNames = {
+            'hr': 'HR',
+            'pm': '项目经理',
+            'ba': '业务分析师',
+            'dev': '开发工程师',
+            'qa': '测试工程师',
+            'architect': '架构师',
+            'system': '系统'
+        };
+
+        const agentColors = {
+            'hr': '#e91e63',
+            'pm': '#2196f3',
+            'ba': '#9c27b0',
+            'dev': '#4caf50',
+            'qa': '#ff9800',
+            'architect': '#607d8b',
+            'system': '#666',
+            'user': '#667aea'
+        };
+
+        const taskStateColors = {
+            'pending': { bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-400' },
+            'in_progress': { bg: 'bg-blue-50', border: 'border-primary', text: 'text-primary' },
+            'review': { bg: 'bg-amber-50', border: 'border-amber-400', text: 'text-amber-600' },
+            'done': { bg: 'bg-emerald-50', border: 'border-emerald-400', text: 'text-emerald-600' }
+        };
+
+        const taskStateLabels = {
+            'pending': '待处理',
+            'in_progress': '进行中',
+            'review': '审核中',
+            'done': '已完成'
+        };
+
+        // ==================== WebSocket Functions ====================
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/chat`);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                wsConnected = true;
+                reconnectAttempts = 0;
+                updateWsStatus(true);
+                showToast('success', '连接成功', 'WebSocket连接已建立');
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                wsConnected = false;
+                updateWsStatus(false);
+                
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    setTimeout(connectWebSocket, 2000 * reconnectAttempts);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWsMessage(data);
+                } catch (e) {
+                    console.error('Failed to parse WS message:', e);
+                }
+            };
+        }
+
+        function handleWsMessage(data) {
+            switch (data.type) {
+                case 'connected':
+                    console.log('WS:', data.message);
+                    break;
+                    
+                case 'message':
+                    addMessage('agent', data.sender, data.content);
+                    hideTyping();
+                    resetSendButton();
+                    break;
+                    
+                case 'turn_update':
+                    document.getElementById('turnCount').textContent = data.turn_count;
+                    break;
+                    
+                case 'session_created':
+                    currentSessionId = data.session_id;
+                    document.getElementById('emptyState').classList.add('hidden');
+                    const messagesDiv = document.getElementById('messages');
+                    messagesDiv.innerHTML = `
+                        <div class="flex justify-center my-4">
+                            <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 px-6 py-2 rounded-full flex items-center gap-2">
+                                <span class="material-symbols-outlined text-emerald-500 text-[18px]">check_circle</span>
+                                <span class="text-xs text-emerald-700 dark:text-emerald-400 font-medium">${data.message}</span>
+                            </div>
+                        </div>
+                    `;
+                    updateSessionStatus(true);
+                    loadTasks();
+                    break;
+                    
+                case 'session_end':
+                    updateSessionStatus(false);
+                    addMessage('system', '系统', '📋 Session已结束\n\n' + (data.handover_doc || '无交接文档'));
+                    break;
+                    
+                case 'task_created':
+                    loadTasks();
+                    updateProgress();
+                    addActivity('task', `新任务: ${data.task.title}`);
+                    break;
+                    
+                case 'task_updated':
+                    loadTasks();
+                    updateProgress();
+                    addActivity('task', `任务状态更新: ${data.task.title} → ${data.new_state}`);
+                    break;
+                    
+                case 'task_deleted':
+                    loadTasks();
+                    updateProgress();
+                    break;
+                    
+                case 'error':
+                    showToast('error', '错误', data.message);
+                    break;
+                    
+                case 'pong':
+                    break;
+            }
+        }
+
+        function updateWsStatus(connected) {
+            const statusEl = document.getElementById('wsStatus');
+            if (connected) {
+                statusEl.innerHTML = `
+                    <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                    <span>在线</span>
+                `;
+            } else {
+                statusEl.innerHTML = `
+                    <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                    <span>离线</span>
+                `;
+            }
+        }
+
+        function sendWsMessage(data) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(data));
+            } else {
+                console.warn('WebSocket not connected');
+            }
+        }
+
+        // ==================== UI Functions ====================
+        const agentRoleNames = {
+            'hr': { name: 'HR', color: '#e91e63' },
+            'pm': { name: '产品经理', color: '#2196f3' },
+            'ba': { name: '业务分析师', color: '#9c27b0' },
+            'dev': { name: '开发工程师', color: '#4caf50' },
+            'qa': { name: '测试工程师', color: '#ff9800' },
+            'architect': { name: '架构师', color: '#607d8b' }
+        };
+
+        const modelOptions = {
+            'openai': ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+            'anthropic': ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+            'zhipu': ['glm-4', 'glm-4-plus', 'glm-4-flash', 'glm-4-air', 'glm-4-airx', 'glm-3-turbo'],
+            'custom': ['custom']
+        };
+
+        let currentConfig = null;
+
+        function updateModelOptions() {
+            const provider = document.getElementById('providerSelect').value;
+            const modelSelect = document.getElementById('modelSelect');
+            const models = modelOptions[provider] || [];
+            
+            modelSelect.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
+        }
+
+        function showConfigModal() {
+            loadConfig();
+            document.getElementById('configModal').classList.remove('hidden');
+        }
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config');
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+                const data = await res.json();
+                
+                // 安全获取配置
+                const defaultCfg = (data && data.default) ? data.default : { provider: 'openai', model: 'gpt-4o', base_url: '' };
+                const agentsCfg = (data && data.agents) ? data.agents : {};
+                
+                currentConfig = data;
+                
+                document.getElementById('providerSelect').value = defaultCfg.provider || 'openai';
+                updateModelOptions();
+                document.getElementById('modelSelect').value = defaultCfg.model || 'gpt-4o';
+                document.getElementById('apiKeyInput').value = '';
+                document.getElementById('baseUrlInput').value = defaultCfg.base_url || '';
+                
+                renderAgentConfigs(agentsCfg);
+            } catch (e) {
+                console.error('Failed to load config:', e);
+                currentConfig = { 
+                    default: { provider: 'openai', model: 'gpt-4o', base_url: '' }, 
+                    agents: {} 
+                };
+                document.getElementById('providerSelect').value = 'openai';
+                updateModelOptions();
+                document.getElementById('modelSelect').value = 'gpt-4o';
+                renderAgentConfigs({});
+            }
+        }
+
+        function renderAgentConfigs(agentConfigs) {
+            const container = document.getElementById('agentConfigList');
+            const roles = Object.keys(agentRoleNames);
+            
+            if (!agentConfigs || Object.keys(agentConfigs).length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4 text-slate-400 text-sm">
+                        <p>点击下方角色可展开独立配置</p>
+                        <p class="text-xs mt-1">不配置则使用默认模型</p>
+                    </div>
+                `;
+                roles.forEach(role => {
+                    const roleInfo = agentRoleNames[role];
+                    container.innerHTML += `
+                        <div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <div onclick="toggleAgentConfig('${role}')" class="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background: ${roleInfo.color}">
+                                        ${role.toUpperCase()}
+                                    </div>
+                                    <span class="text-sm font-medium">${roleInfo.name}</span>
+                                    <span class="text-xs text-slate-400">(使用默认)</span>
+                                </div>
+                                <span class="material-symbols-outlined text-slate-400 text-[18px] transition-transform" id="arrow-${role}">expand_more</span>
+                            </div>
+                            <div id="agent-${role}" class="hidden p-3 pt-0 grid grid-cols-2 gap-3">
+                                <div class="col-span-2">
+                                    <label class="text-xs text-slate-500 flex items-center">
+                                        <input type="checkbox" id="use-default-${role}" checked 
+                                            onchange="toggleAgentUseDefault('${role}')" class="mr-2"/>
+                                        使用默认配置
+                                    </label>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-500">供应商</label>
+                                    <select id="agent-provider-${role}" class="w-full h-9 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" onchange="updateAgentModels('${role}')">
+                                        <option value="openai">OpenAI</option>
+                                        <option value="anthropic">Anthropic</option>
+                                        <option value="zhipu">智谱AI</option>
+                                        <option value="custom">自定义</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-500">模型</label>
+                                    <select id="agent-model-${role}" class="w-full h-9 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                        ${modelOptions['openai'].map(m => `<option value="${m}">${m}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="text-xs text-slate-500">API Key <span class="text-slate-400">(可选)</span></label>
+                                    <input id="agent-apikey-${role}" type="password" class="w-full h-9 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3" placeholder="留空使用默认配置"/>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                return;
+            }
+            
+            container.innerHTML = roles.map(role => {
+                const config = agentConfigs[role] || {};
+                const roleInfo = agentRoleNames[role];
+                
+                return `
+                    <div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <div onclick="toggleAgentConfig('${role}')" class="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background: ${roleInfo.color}">
+                                    ${role.toUpperCase()}
+                                </div>
+                                <span class="text-sm font-medium">${roleInfo.name}</span>
+                                ${config.model ? `<span class="text-xs text-primary">${config.provider}/${config.model}</span>` : '<span class="text-xs text-slate-400">(使用默认)</span>'}
+                            </div>
+                            <span class="material-symbols-outlined text-slate-400 text-[18px] transition-transform" id="arrow-${role}">expand_more</span>
+                        </div>
+                        <div id="agent-${role}" class="hidden p-3 pt-0 grid grid-cols-2 gap-3">
+                            <div class="col-span-2">
+                                <label class="text-xs text-slate-500 flex items-center">
+                                    <input type="checkbox" id="use-default-${role}" ${!config.model ? 'checked' : ''} 
+                                        onchange="toggleAgentUseDefault('${role}')" class="mr-2"/>
+                                    使用默认配置
+                                </label>
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-500">供应商</label>
+                                <select id="agent-provider-${role}" class="w-full h-9 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" onchange="updateAgentModels('${role}')">
+                                    <option value="openai" ${config.provider === 'openai' ? 'selected' : ''}>OpenAI</option>
+                                    <option value="anthropic" ${config.provider === 'anthropic' ? 'selected' : ''}>Anthropic</option>
+                                    <option value="zhipu" ${config.provider === 'zhipu' ? 'selected' : ''}>智谱AI</option>
+                                    <option value="custom" ${config.provider === 'custom' ? 'selected' : ''}>自定义</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-500">模型</label>
+                                <select id="agent-model-${role}" class="w-full h-9 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                    ${(modelOptions[config.provider] || modelOptions['openai']).map(m => 
+                                        `<option value="${m}" ${config.model === m ? 'selected' : ''}>${m}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                            <div class="col-span-2">
+                                <label class="text-xs text-slate-500">API Key <span class="text-slate-400">(可选)</span></label>
+                                <input id="agent-apikey-${role}" type="password" class="w-full h-9 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3" placeholder="留空使用默认配置" value=""/>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleAgentConfig(role) {
+            const el = document.getElementById(`agent-${role}`);
+            const arrow = document.getElementById(`arrow-${role}`);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                el.classList.add('hidden');
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function toggleAgentUseDefault(role) {
+            const checkbox = document.getElementById(`use-default-${role}`);
+            const fields = document.getElementById(`agent-${role}`).querySelectorAll('select, input:not([type="checkbox"])');
+            fields.forEach(f => f.disabled = checkbox.checked);
+        }
+
+        function updateAgentModels(role) {
+            const provider = document.getElementById(`agent-provider-${role}`).value;
+            const modelSelect = document.getElementById(`agent-model-${role}`);
+            modelSelect.innerHTML = (modelOptions[provider] || []).map(m => `<option value="${m}">${m}</option>`).join('');
+        }
+
+        function expandAllAgents() {
+            console.log('expandAllAgents called');
+            try {
+                Object.keys(agentRoleNames).forEach(role => {
+                    console.log('Expanding agent:', role);
+                    const el = document.getElementById(`agent-${role}`);
+                    const arrow = document.getElementById(`arrow-${role}`);
+                    if (el) {
+                        el.classList.remove('hidden');
+                    }
+                    if (arrow) {
+                        arrow.style.transform = 'rotate(180deg)';
+                    }
+                });
+            } catch (e) {
+                console.error('expandAllAgents error:', e);
+            }
+        }
+
+        async function saveAllConfig() {
+            const provider = document.getElementById('providerSelect').value;
+            const model = document.getElementById('modelSelect').value;
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const baseUrl = document.getElementById('baseUrlInput').value;
+
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        provider,
+                        model,
+                        api_key: apiKey || null,
+                        base_url: baseUrl || null
+                    })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    showToast('error', '保存失败', err.detail);
+                    return;
+                }
+
+                const configs = [];
+                for (const role of Object.keys(agentRoleNames)) {
+                    const useDefault = document.getElementById(`use-default-${role}`)?.checked;
+                    if (useDefault) continue;
+                    
+                    const agentProvider = document.getElementById(`agent-provider-${role}`)?.value || provider;
+                    const agentModel = document.getElementById(`agent-model-${role}`)?.value || model;
+                    const agentApiKey = document.getElementById(`agent-apikey-${role}`)?.value;
+                    
+                    configs.push({
+                        role,
+                        provider: agentProvider,
+                        model: agentModel,
+                        api_key: agentApiKey || null,
+                        base_url: null
+                    });
+                }
+
+                if (configs.length > 0) {
+                    await fetch('/api/config/agents', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ configs })
+                    });
+                }
+
+                hideConfigModal();
+                showToast('success', '配置成功', '模型配置已保存');
+            } catch (e) {
+                showToast('error', '保存失败', e.message);
+            }
+        }
+
+        function hideConfigModal() {
+            document.getElementById('configModal').classList.add('hidden');
+        }
+
+        function showAddTaskModal() {
+            if (!currentSessionId) {
+                showToast('warning', '提示', '请先创建项目');
+                return;
+            }
+            document.getElementById('addTaskModal').classList.remove('hidden');
+            
+            document.querySelectorAll('.priority-option').forEach(el => {
+                el.onclick = function() {
+                    const label = this.parentElement;
+                    const radio = label.querySelector('input[type="radio"]');
+                    if (radio) {
+                        radio.checked = true;
+                        document.querySelectorAll('.priority-option').forEach(opt => {
+                            opt.className = 'priority-option flex items-center justify-center py-2 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-slate-50 dark:bg-slate-800 transition-all';
+                        });
+                        this.className = 'priority-option flex items-center justify-center py-2 px-3 border border-primary dark:border-primary rounded-lg text-sm bg-primary/10 text-primary font-medium';
+                    }
+                };
+            });
+        }
+
+        function hideAddTaskModal() {
+            document.getElementById('addTaskModal').classList.add('hidden');
+        }
+
+        function selectAgent(agent) {
+            selectedAgent = agent;
+            document.getElementById('messageInput').focus();
+        }
+
+        async function saveConfig() {
+            const model = document.getElementById('modelSelect').value;
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const baseUrl = document.getElementById('baseUrlInput').value;
+
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({model, api_key: apiKey, base_url: baseUrl})
+                });
+
+                if (res.ok) {
+                    hideConfigModal();
+                    showToast('success', '配置成功', 'LLM已配置完成');
+                } else {
+                    const err = await res.json();
+                    showToast('error', '配置失败', err.detail);
+                }
+            } catch (e) {
+                showToast('error', '配置失败', e.message);
+            }
+        }
+
+        function createSession() {
+            sendWsMessage({ type: 'create_session' });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const sendIcon = document.getElementById('sendIcon');
+            const sendText = document.getElementById('sendText');
+            let message = input.value.trim();
+
+            if (!message) return;
+            if (!currentSessionId) {
+                showToast('warning', '提示', '请先创建项目');
+                return;
+            }
+
+            sendBtn.disabled = true;
+            sendIcon.textContent = 'hourglass_empty';
+            sendText.textContent = '处理中';
+
+            if (selectedAgent) {
+                message = `[${agentNames[selectedAgent]}] ${message}`;
+                selectedAgent = null;
+            }
+
+            addMessage('user', '我', message);
+            input.value = '';
+            showTyping();
+
+            sendWsMessage({ type: 'chat', message: message });
+
+            setTimeout(() => {
+                sendBtn.disabled = false;
+                sendIcon.textContent = 'send';
+                sendText.textContent = '发送';
+            }, 3000);
+        }
+
+        function handleTyping() {
+            if (typingTimeout) clearTimeout(typingTimeout);
+            sendWsMessage({ type: 'typing', sender: 'user' });
+        }
+
+        function showTyping() {
+            document.getElementById('typingIndicator').classList.remove('hidden');
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function hideTyping() {
+            document.getElementById('typingIndicator').classList.add('hidden');
+        }
+
+        function addMessage(type, sender, content) {
+            const messagesDiv = document.getElementById('messages');
+            
+            const emptyState = document.getElementById('emptyState');
+            if (emptyState) {
+                emptyState.classList.add('hidden');
+            }
+
+            const color = agentColors[type === 'user' ? 'user' : sender] || agentColors['system'];
+            
+            let renderedContent = content;
+            if (typeof marked !== 'undefined' && typeof hljs !== 'undefined') {
+                try {
+                    renderedContent = marked.parse(content, { breaks: true });
+                } catch (e) {
+                    renderedContent = content.replace(/\n/g, '<br>');
+                }
+            } else {
+                renderedContent = content.replace(/\n/g, '<br>');
+            }
+            
+            const div = document.createElement('div');
+            if (type === 'user') {
+                div.className = 'flex flex-row-reverse items-start gap-4 max-w-[85%] ml-auto';
+                div.innerHTML = `
+                    <div class="w-10 h-10 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center border border-primary/30 shadow-sm overflow-hidden">
+                        <span class="material-symbols-outlined text-primary">person</span>
+                    </div>
+                    <div class="flex flex-col items-end gap-1">
+                        <span class="text-xs font-bold text-slate-400 mr-1">${sender}</span>
+                        <div class="bg-gradient-to-br from-primary to-secondary p-4 rounded-2xl rounded-tr-none shadow-md">
+                            <div class="text-sm text-white leading-relaxed font-medium message-content">${renderedContent}</div>
+                        </div>
+                    </div>
+                `;
+            } else if (type === 'system') {
+                div.className = 'flex justify-center my-4';
+                div.innerHTML = `
+                    <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 px-6 py-3 rounded-full flex items-start gap-2 max-w-[80%]">
+                        <span class="material-symbols-outlined text-amber-500 text-[18px] mt-0.5">warning</span>
+                        <p class="text-xs text-amber-700 dark:text-amber-400 font-medium whitespace-pre-line">${content}</p>
+                    </div>
+                `;
+            } else {
+                div.className = 'flex items-start gap-4 max-w-[85%]';
+                div.innerHTML = `
+                    <div class="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center border shadow-sm" style="background: ${color}20; border-color: ${color}30;">
+                        <span class="material-symbols-outlined" style="color: ${color}">smart_toy</span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-xs font-bold text-slate-400 ml-1">${sender}</span>
+                        <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-200 dark:border-slate-700">
+                            <div class="text-sm leading-relaxed message-content">${renderedContent}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            messagesDiv.appendChild(div);
+            
+            if (typeof hljs !== 'undefined') {
+                div.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            }
+            
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        async function loadTasks() {
+            try {
+                const res = await fetch('/api/tasks');
+                const data = await res.json();
+
+                const container = document.getElementById('taskList');
+
+                if (!data.tasks || data.tasks.length === 0) {
+                    container.innerHTML = '<div class="text-center py-4 text-slate-400 text-sm">暂无任务</div>';
+                    return;
+                }
+
+                container.innerHTML = data.tasks.map(task => {
+                    const colors = taskStateColors[task.state] || taskStateColors['pending'];
+                    const priorityLabels = { 'low': '低', 'medium': '中', 'high': '高' };
+                    const roleLabels = { 'dev': '开发', 'qa': '测试', 'ba': 'BA', 'architect': '架构师', 'pm': 'PM', 'hr': 'HR' };
+                    return `
+                        <div onclick="showTaskDetail('${task.id}')" class="${colors.bg} dark:bg-slate-800/50 p-3 rounded-lg border-l-4 ${colors.border} shadow-sm cursor-pointer hover:opacity-80 transition-opacity">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-bold ${colors.text}">${taskStateLabels[task.state] || '待处理'}</span>
+                                <span class="text-[10px] text-slate-400">${priorityLabels[task.priority] || '中'}</span>
+                            </div>
+                            <p class="text-sm font-medium leading-tight">${task.title}</p>
+                            ${task.assignee_role ? `<p class="text-[10px] text-slate-400 mt-1">负责人: ${roleLabels[task.assignee_role] || task.assignee_role}</p>` : ''}
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error('加载任务失败:', e);
+            }
+        }
+
+        function showTaskDetail(taskId) {
+            console.log('Task clicked:', taskId);
+        }
+
+        async function loadSessionList() {
+            try {
+                const res = await fetch('/api/sessions');
+                const data = await res.json();
+
+                const container = document.getElementById('sessionList');
+
+                if (!data.sessions || data.sessions.length === 0) {
+                    container.innerHTML = '<div class="text-center py-4 text-slate-400 text-xs">暂无历史会话</div>';
+                    return;
+                }
+
+                container.innerHTML = data.sessions.slice(0, 10).map(session => {
+                    const date = new Date(session.created_at);
+                    const dateStr = date.toLocaleDateString('zh-CN');
+                    const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                    return `
+                        <div onclick="loadSession('${session.id}')" class="flex items-center gap-2 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                            <span class="material-symbols-outlined text-slate-400 text-[16px]">chat</span>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-xs font-medium truncate">${dateStr} ${timeStr}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error('加载会话列表失败:', e);
+            }
+        }
+
+        async function loadSession(sessionId) {
+            try {
+                const res = await fetch(`/api/sessions/${sessionId}/load`, { method: 'POST' });
+                if (!res.ok) {
+                    const err = await res.json();
+                    showToast('error', '加载失败', err.detail || '无法加载会话');
+                    return;
+                }
+                const data = await res.json();
+                showToast('success', '加载成功', `已加载会话，包含 ${data.message_count} 条消息`);
+                loadSessionList();
+                loadTasks();
+            } catch (e) {
+                showToast('error', '加载失败', e.message);
+            }
+        }
+
+        async function addTask() {
+            const title = document.getElementById('taskTitle').value.trim();
+            const description = document.getElementById('taskDesc').value.trim();
+            const assigneeRole = document.getElementById('taskAssignee').value;
+            
+            const priorityEl = document.querySelector('input[name="priority"]:checked');
+            const priority = priorityEl ? priorityEl.value : 'medium';
+
+            console.log('Adding task:', { title, description, assigneeRole, priority });
+
+            if (!title) {
+                showToast('warning', '提示', '请输入任务标题');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title,
+                        description,
+                        assignee_role: assigneeRole,
+                        priority
+                    })
+                });
+
+                console.log('Add task response:', res.status, res.ok);
+
+                if (res.ok) {
+                    const data = await res.json();
+                    console.log('Task created:', data);
+                    hideAddTaskModal();
+                    loadTasks();
+                    updateProgress();
+                    showToast('success', '成功', `任务 "${title}" 已创建`);
+                    document.getElementById('taskTitle').value = '';
+                    document.getElementById('taskDesc').value = '';
+                    document.getElementById('taskAssignee').value = '';
+                } else {
+                    const err = await res.json();
+                    console.error('Error:', err);
+                    showToast('error', '添加失败', err.detail || '未知错误');
+                }
+            } catch (e) {
+                console.error('Exception:', e);
+                showToast('error', '添加失败', e.message);
+            }
+        }
+
+        function updateSessionStatus(active) {
+            const status = document.getElementById('sessionStatus');
+            if (active) {
+                status.innerHTML = `
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    进行中
+                `;
+                status.className = 'bg-emerald-500/20 text-emerald-100 text-xs px-2 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1';
+            } else {
+                status.innerHTML = `
+                    <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                    已结束
+                `;
+                status.className = 'bg-red-500/20 text-red-100 text-xs px-2 py-1 rounded-full border border-red-500/30 flex items-center gap-1';
+            }
+        }
+
+        function updateProgress() {
+            fetch('/api/tasks')
+                .then(res => res.json())
+                .then(data => {
+                    const tasks = data.tasks || [];
+                    if (tasks.length === 0) {
+                        document.getElementById('progressBar').style.width = '0%';
+                        document.getElementById('progressText').textContent = '0% 完成';
+                        return;
+                    }
+                    const done = tasks.filter(t => t.state === 'done').length;
+                    const percent = Math.round((done / tasks.length) * 100);
+                    document.getElementById('progressBar').style.width = percent + '%';
+                    document.getElementById('progressText').textContent = percent + '% 完成';
+                });
+        }
+
+        function addActivity(type, text) {
+            const container = document.getElementById('activityList');
+            const time = new Date().toLocaleTimeString();
+            
+            const colorMap = {
+                'task': 'bg-primary',
+                'message': 'bg-blue-500',
+                'session': 'bg-emerald-500'
+            };
+            
+            const html = `
+                <div class="flex gap-3 relative animate-slide-in">
+                    <div class="w-2 h-2 rounded-full ${colorMap[type] || 'bg-primary'} mt-1.5 shrink-0 z-10"></div>
+                    <div>
+                        <p class="text-xs font-bold">${text}</p>
+                        <p class="text-[10px] text-slate-400">${time}</p>
+                    </div>
+                </div>
+            `;
+            
+            container.insertAdjacentHTML('afterbegin', html);
+            
+            const activities = container.querySelectorAll('.relative');
+            if (activities.length > 10) {
+                activities[activities.length - 1].remove();
+            }
+        }
+
+        function showToast(type, title, message) {
+            const container = document.getElementById('toastContainer');
+            
+            const icons = {
+                'success': 'check_circle',
+                'error': 'error',
+                'warning': 'warning',
+                'info': 'info'
+            };
+            
+            const colors = {
+                'success': 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600',
+                'error': 'bg-red-500/10 border-red-500/20 text-red-600',
+                'warning': 'bg-amber-500/10 border-amber-500/20 text-amber-600',
+                'info': 'bg-blue-500/10 border-blue-500/20 text-blue-600'
+            };
+            
+            const id = 'toast-' + Date.now();
+            
+            const html = `
+                <div id="${id}" class="flex items-start gap-3 p-4 rounded-xl border ${colors[type]} animate-slide-in">
+                    <span class="material-symbols-outlined">${icons[type]}</span>
+                    <div>
+                        <p class="font-semibold text-sm">${title}</p>
+                        <p class="text-xs opacity-80">${message}</p>
+                    </div>
+                </div>
+            `;
+            
+            container.insertAdjacentHTML('afterbegin', html);
+            
+            setTimeout(() => {
+                const el = document.getElementById(id);
+                if (el) el.remove();
+            }, 5000);
+        }
+
+        function resetSendButton() {
+            const sendBtn = document.getElementById('sendBtn');
+            const sendIcon = document.getElementById('sendIcon');
+            const sendText = document.getElementById('sendText');
+            if (sendBtn && sendIcon && sendText) {
+                sendBtn.disabled = false;
+                sendIcon.textContent = 'send';
+                sendText.textContent = '发送';
+            }
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Initialize WebSocket connection on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            connectWebSocket();
+        });
+    </script>
+</body>
+</html>
