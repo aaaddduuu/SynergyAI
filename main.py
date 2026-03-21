@@ -35,9 +35,80 @@ logging.basicConfig(
 logger = logging.getLogger("ai_coworker")
 
 app = FastAPI(
-    title="SynergyAI",
-    description="Multi-Agent Collaboration Platform - Where AI Agents Work Synergistically",
-    version="1.0.0"
+    title="SynergyAI API",
+    description="""
+    ## 多智能体协作系统 API
+
+    SynergyAI 是一个强大的多智能体协作平台，让 AI 智能体协同工作以完成复杂任务。
+
+    ### 主要功能
+
+    * 🤖 **多角色智能体**：支持 HR、PM、BA、Dev、QA、Architect 等多个角色
+    * 💬 **实时通信**：基于 WebSocket 的实时消息推送
+    * 📋 **任务管理**：完整的任务创建、更新、追踪流程
+    * 🎯 **智能编排**：自动协调不同角色的智能体协作
+    * ⚙️ **灵活配置**：支持多种 LLM 提供商和模型配置
+
+    ### 支持的 LLM 提供商
+
+    * OpenAI (GPT-4, GPT-4o, etc.)
+    * Anthropic (Claude 系列)
+    * 智谱 AI (GLM 系列)
+    * 自定义端点
+
+    ### 快速开始
+
+    1. 创建会话：`POST /api/session`
+    2. 配置模型：`POST /api/config`
+    3. 开始聊天：`POST /api/chat` 或使用 WebSocket `/ws/chat`
+
+    ### 文档
+
+    * Swagger UI: `/docs`
+    * ReDoc: `/redoc`
+    * OpenAPI JSON: `/openapi.json`
+    """,
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    contact={
+        "name": "SynergyAI Team",
+        "email": "support@synergyai.com",
+    },
+    license_info={
+        "name": "MIT License",
+    },
+    tags=[
+        {
+            "name": "session",
+            "description": "会话管理相关接口"
+        },
+        {
+            "name": "chat",
+            "description": "聊天和消息相关接口"
+        },
+        {
+            "name": "tasks",
+            "description": "任务管理相关接口"
+        },
+        {
+            "name": "config",
+            "description": "模型配置相关接口"
+        },
+        {
+            "name": "agents",
+            "description": "智能体相关接口"
+        },
+        {
+            "name": "websocket",
+            "description": "WebSocket 实时通信"
+        },
+        {
+            "name": "health",
+            "description": "健康检查和系统状态"
+        }
+    ]
 )
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
@@ -127,11 +198,15 @@ manager = ConnectionManager()
 
 
 class ChatRequest(BaseModel):
+    """聊天请求模型
+
+    用于向智能体发送消息的请求模型
+    """
     message: str
     model: str = "gpt-4"
     api_key: Optional[str] = None
     base_url: Optional[str] = None
-    
+
     @validator('message')
     def validate_message(cls, v):
         if not v or not v.strip():
@@ -140,14 +215,28 @@ class ChatRequest(BaseModel):
             raise ValueError("消息长度不能超过10000字符")
         return v.strip()
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": "请帮我设计一个用户认证系统",
+                "model": "gpt-4o",
+                "api_key": "sk-xxx",
+                "base_url": "https://api.openai.com/v1"
+            }
+        }
+
 
 class TaskCreate(BaseModel):
+    """任务创建模型
+
+    用于创建新任务的请求模型
+    """
     title: str
     description: str = ""
     assignee: Optional[str] = None
     assignee_role: Optional[str] = None
     priority: str = "medium"
-    
+
     @validator('title')
     def validate_title(cls, v):
         if not v or not v.strip():
@@ -155,15 +244,30 @@ class TaskCreate(BaseModel):
         if len(v) > 200:
             raise ValueError("任务标题不能超过200字符")
         return v.strip()
-    
+
     @validator('priority')
     def validate_priority(cls, v):
         if v not in ['low', 'medium', 'high']:
             raise ValueError("优先级必须是 low, medium 或 high")
         return v
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "实现用户登录功能",
+                "description": "包括用户注册、登录、密码重置等功能",
+                "assignee": "dev-1",
+                "assignee_role": "dev",
+                "priority": "high"
+            }
+        }
+
 
 class TaskUpdate(BaseModel):
+    """任务更新模型
+
+    用于更新现有任务的请求模型
+    """
     title: Optional[str] = None
     description: Optional[str] = None
     assignee: Optional[str] = None
@@ -171,27 +275,40 @@ class TaskUpdate(BaseModel):
     state: Optional[str] = None
     priority: Optional[str] = None
     notes: Optional[List[str]] = None
-    
+
     @validator('state')
     def validate_state(cls, v):
         if v and v not in ['pending', 'in_progress', 'review', 'done', 'blocked']:
             raise ValueError("无效的任务状态")
         return v
-    
+
     @validator('priority')
     def validate_priority(cls, v):
         if v and v not in ['low', 'medium', 'high']:
             raise ValueError("优先级必须是 low, medium 或 high")
         return v
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "state": "in_progress",
+                "priority": "high",
+                "notes": ["正在开发中", "预计本周完成"]
+            }
+        }
+
 
 class ConfigRequest(BaseModel):
+    """默认模型配置请求
+
+    用于配置系统默认的 LLM 模型
+    """
     provider: str = "openai"
     model: str = "gpt-4o"
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     temperature: float = 0.7
-    
+
     @validator('provider')
     def validate_provider(cls, v):
         allowed = ['openai', 'anthropic', 'zhipu', 'custom']
@@ -199,22 +316,37 @@ class ConfigRequest(BaseModel):
             raise ValueError(f"Provider must be one of: {allowed}")
         return v
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "provider": "openai",
+                "model": "gpt-4o",
+                "api_key": "sk-xxx",
+                "base_url": "https://api.openai.com/v1",
+                "temperature": 0.7
+            }
+        }
+
 
 class AgentConfigRequest(BaseModel):
+    """智能体模型配置请求
+
+    为特定角色的智能体配置 LLM 模型
+    """
     role: str
     provider: str = "openai"
     model: str = "gpt-4o"
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     temperature: float = 0.7
-    
+
     @validator('role')
     def validate_role(cls, v):
         allowed = ['hr', 'pm', 'ba', 'dev', 'qa', 'architect']
         if v not in allowed:
             raise ValueError(f"Role must be one of: {allowed}")
         return v
-    
+
     @validator('provider')
     def validate_provider(cls, v):
         allowed = ['openai', 'anthropic', 'zhipu', 'custom']
@@ -222,9 +354,42 @@ class AgentConfigRequest(BaseModel):
             raise ValueError(f"Provider must be one of: {allowed}")
         return v
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "role": "dev",
+                "provider": "openai",
+                "model": "gpt-4o",
+                "api_key": "sk-xxx",
+                "temperature": 0.7
+            }
+        }
+
 
 class BatchConfigRequest(BaseModel):
+    """批量智能体配置请求
+
+    批量为多个智能体角色配置模型
+    """
     configs: List[AgentConfigRequest]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "configs": [
+                    {
+                        "role": "dev",
+                        "provider": "openai",
+                        "model": "gpt-4o"
+                    },
+                    {
+                        "role": "qa",
+                        "provider": "openai",
+                        "model": "gpt-4o"
+                    }
+                ]
+            }
+        }
 
 
 def log_request(func):
@@ -241,19 +406,33 @@ def log_request(func):
     return wrapper
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse, tags=["health"])
 @log_request
 async def index(request: Request):
+    """返回主页 HTML
+
+    访问系统主页，返回单页应用界面
+    """
     logger.info("Index page accessed")
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.post("/api/config")
+@app.post("/api/config", tags=["config"], summary="配置默认模型", description="设置系统默认的 LLM 提供商和模型")
 @log_request
 async def configure(req: ConfigRequest):
+    """配置默认 LLM 模型
+
+    设置系统使用的默认 LLM 提供商和模型配置，该配置将应用于所有未单独配置的智能体。
+
+    - **provider**: LLM 提供商 (openai, anthropic, zhipu, custom)
+    - **model**: 模型名称
+    - **api_key**: API 密钥
+    - **base_url**: API 基础 URL (可选)
+    - **temperature**: 温度参数 (0-1)
+    """
     try:
         base_url = req.base_url or PROVIDER_BASE_URLS.get(req.provider, "")
-        
+
         config = ModelConfig(
             provider=req.provider,
             model=req.model,
@@ -261,9 +440,9 @@ async def configure(req: ConfigRequest):
             base_url=base_url,
             temperature=req.temperature
         )
-        
+
         model_config_manager.set_default_config(config)
-        
+
         await manager.broadcast({
             "type": "config_updated",
             "provider": req.provider,
@@ -276,11 +455,22 @@ async def configure(req: ConfigRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/api/config/agent")
+@app.post("/api/config/agent", tags=["config"], summary="配置智能体模型", description="为特定角色的智能体配置专用的 LLM 模型")
 async def configure_agent(req: AgentConfigRequest):
+    """配置智能体专用模型
+
+    为特定角色的智能体配置独立的 LLM 模型，使其使用与其他角色不同的模型配置。
+
+    - **role**: 智能体角色 (hr, pm, ba, dev, qa, architect)
+    - **provider**: LLM 提供商
+    - **model**: 模型名称
+    - **api_key**: API 密钥
+    - **base_url**: API 基础 URL (可选)
+    - **temperature**: 温度参数
+    """
     try:
         base_url = req.base_url or PROVIDER_BASE_URLS.get(req.provider, "")
-        
+
         config = AgentModelConfig(
             role=req.role,
             provider=req.provider,
@@ -289,9 +479,9 @@ async def configure_agent(req: AgentConfigRequest):
             base_url=base_url,
             temperature=req.temperature
         )
-        
+
         model_config_manager.set_agent_config(req.role, config)
-        
+
         logger.info(f"Agent {req.role} configured: {req.provider}/{req.model}")
         return {"status": "ok", "message": f"{req.role} 角色配置成功: {req.provider}/{req.model}"}
     except Exception as e:
@@ -299,12 +489,18 @@ async def configure_agent(req: AgentConfigRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/api/config/agents")
+@app.post("/api/config/agents", tags=["config"], summary="批量配置智能体", description="一次性为多个智能体角色配置模型")
 async def configure_agents(req: BatchConfigRequest):
+    """批量配置智能体模型
+
+    一次性为多个智能体角色配置 LLM 模型，提高配置效率。
+
+    - **configs**: 智能体配置列表
+    """
     try:
         for config_req in req.configs:
             base_url = config_req.base_url or PROVIDER_BASE_URLS.get(config_req.provider, "")
-            
+
             config = AgentModelConfig(
                 role=config_req.role,
                 provider=config_req.provider,
@@ -313,9 +509,9 @@ async def configure_agents(req: BatchConfigRequest):
                 base_url=base_url,
                 temperature=config_req.temperature
             )
-            
+
             model_config_manager.set_agent_config(config_req.role, config)
-        
+
         logger.info(f"Batch configured {len(req.configs)} agents")
         return {"status": "ok", "message": f"批量配置成功: {len(req.configs)} 个角色"}
     except Exception as e:
@@ -323,8 +519,12 @@ async def configure_agents(req: BatchConfigRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/api/config")
+@app.get("/api/config", tags=["config"], summary="获取模型配置", description="获取当前所有智能体的模型配置信息")
 async def get_config():
+    """获取当前配置
+
+    返回当前系统默认模型配置以及所有智能体角色的配置信息。
+    """
     try:
         default_config = model_config_manager.get_default_config()
 
@@ -384,6 +584,24 @@ async def get_config():
 
 @app.websocket("/ws/chat")
 async def websocket_chat(websocket: WebSocket):
+    """WebSocket 聊天端点
+
+    建立实时双向通信连接，用于发送消息和接收智能体响应。
+
+    **支持的消息类型:**
+    - `chat`: 发送聊天消息
+    - `create_session`: 创建新会话
+    - `typing`: 显示正在输入状态
+    - `ping`: 心跳检测
+
+    **服务器响应类型:**
+    - `connected`: 连接成功
+    - `message`: 聊天消息
+    - `session_created`: 会话创建成功
+    - `session_end`: 会话结束
+    - `typing`: 正在输入
+    - `error`: 错误信息
+    """
     await manager.connect(websocket)
     try:
         await websocket.send_json({
@@ -502,31 +720,41 @@ async def handle_websocket_message(data: dict, websocket: WebSocket):
         }, websocket)
 
 
-@app.post("/api/session")
+@app.post("/api/session", tags=["session"], summary="创建会话", description="创建新的协作会话（项目）")
 @log_request
 async def create_session():
+    """创建新会话
+
+    创建一个新的协作会话，用于管理一个独立的项目或任务。
+    返回会话 ID，用于后续的消息发送和任务管理。
+    """
     global current_session
-    
+
     session = Session()
     current_session = session
     storage.save_session(session)
     logger.info(f"Session created via API: {session.id}")
-    
+
     await manager.broadcast({
         "type": "session_created",
         "session_id": session.id,
         "message": "新项目创建成功！"
     })
-    
+
     return {"session_id": session.id, "message": "新项目创建成功！"}
 
 
-@app.get("/api/session")
+@app.get("/api/session", tags=["session"], summary="获取当前会话", description="获取当前活跃会话的信息")
 @log_request
 async def get_session():
+    """获取当前会话
+
+    返回当前活跃会话的基本信息，包括会话 ID、轮次等。
+    如果没有活跃会话，返回 active: false
+    """
     if not current_session:
         return {"active": False}
-    
+
     return {
         "active": current_session.is_active,
         "session_id": current_session.id,
@@ -535,16 +763,27 @@ async def get_session():
     }
 
 
-@app.get("/api/sessions")
+@app.get("/api/sessions", tags=["session"], summary="列出所有会话", description="获取系统中所有历史会话列表")
 @log_request
 async def list_sessions():
+    """列出所有会话
+
+    返回系统中所有保存的会话列表，包括会话 ID、创建时间等信息。
+    """
     sessions = storage.list_sessions()
     return {"sessions": sessions}
 
 
-@app.post("/api/sessions/{session_id}/load")
+@app.post("/api/sessions/{session_id}/load", tags=["session"], summary="加载会话", description="加载指定的历史会话")
 @log_request
 async def load_session(session_id: str):
+    """加载会话
+
+    从存储中加载指定的历史会话，使其成为当前活跃会话。
+    可以继续之前的对话和任务。
+
+    - **session_id**: 要加载的会话 ID
+    """
     global current_session
     session = storage.load_session(session_id)
     if not session:
@@ -559,36 +798,49 @@ async def load_session(session_id: str):
     }
 
 
-@app.get("/api/messages")
+@app.get("/api/messages", tags=["chat"], summary="获取消息历史", description="获取当前会话的所有消息记录")
 @log_request
 async def get_messages():
+    """获取消息历史
+
+    返回当前会话中的所有消息，包括用户消息和所有智能体的响应。
+    """
     if not current_session:
         return {"messages": []}
-    
+
     return {
         "messages": [msg.to_dict() for msg in current_session.messages],
         "turn_count": current_session.turn_count
     }
 
 
-@app.post("/api/chat")
+@app.post("/api/chat", tags=["chat"], summary="发送聊天消息", description="向智能体发送消息并获取响应")
 @log_request
 async def chat(req: ChatRequest):
+    """发送聊天消息
+
+    向智能体发送消息，获取响应。支持多智能体协作对话。
+
+    - **message**: 要发送的消息内容 (1-10000 字符)
+    - **model**: 使用的模型 (可选，默认 gpt-4)
+    - **api_key**: API 密钥 (可选)
+    - **base_url**: API 基础 URL (可选)
+    """
     global current_session, orchestrator
-    
+
     if not current_session:
         raise HTTPException(status_code=400, detail="请先创建项目")
-    
+
     if not current_session.is_active:
         raise HTTPException(status_code=400, detail="当前session已结束，请创建新项目")
-    
+
     if not orchestrator:
         raise HTTPException(status_code=400, detail="请先配置LLM")
-    
+
     try:
         response = orchestrator.chat(current_session, req.message)
         storage.save_session(current_session)
-        
+
         return {
             "response": response.to_dict(),
             "turn_count": current_session.turn_count,
@@ -600,25 +852,39 @@ async def chat(req: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/tasks")
+@app.get("/api/tasks", tags=["tasks"], summary="获取任务列表", description="获取当前会话的所有任务")
 @log_request
 async def get_tasks():
+    """获取任务列表
+
+    返回当前会话中创建的所有任务及其状态。
+    """
     if not current_session:
         return {"tasks": []}
-    
+
     return {
         "tasks": [task.to_dict() for task in current_session.tasks.values()]
     }
 
 
-@app.post("/api/tasks")
+@app.post("/api/tasks", tags=["tasks"], summary="创建任务", description="创建新任务")
 @log_request
 async def create_task(task: TaskCreate):
+    """创建新任务
+
+    在当前会话中创建一个新任务。
+
+    - **title**: 任务标题 (必填，1-200 字符)
+    - **description**: 任务描述 (可选)
+    - **assignee**: 负责人 (可选)
+    - **assignee_role**: 负责人角色 (可选: hr, pm, ba, dev, qa, architect)
+    - **priority**: 优先级 (可选: low, medium, high，默认 medium)
+    """
     global current_session
-    
+
     if not current_session:
         raise HTTPException(status_code=400, detail="请先创建项目")
-    
+
     new_task = Task(
         id=str(uuid.uuid4()),
         title=task.title,
@@ -628,33 +894,46 @@ async def create_task(task: TaskCreate):
         created_by="user",
         priority=task.priority
     )
-    
+
     current_session.tasks[new_task.id] = new_task
     storage.save_session(current_session)
     logger.info(f"Task created: {new_task.title}")
-    
+
     await manager.broadcast({
         "type": "task_created",
         "task": new_task.to_dict()
     })
-    
+
     return {"task": new_task.to_dict()}
 
 
-@app.put("/api/tasks/{task_id}")
+@app.put("/api/tasks/{task_id}", tags=["tasks"], summary="更新任务", description="更新现有任务的信息")
 @log_request
 async def update_task(task_id: str, task_update: TaskUpdate):
+    """更新任务
+
+    更新指定任务的信息。支持部分更新，只更新提供的字段。
+
+    - **task_id**: 任务 ID (路径参数)
+    - **title**: 新的标题 (可选)
+    - **description**: 新的描述 (可选)
+    - **assignee**: 新的负责人 (可选)
+    - **assignee_role**: 新的负责人角色 (可选)
+    - **state**: 新的状态 (可选: pending, in_progress, review, done, blocked)
+    - **priority**: 新的优先级 (可选: low, medium, high)
+    - **notes**: 备注列表 (可选)
+    """
     global current_session
-    
+
     if not current_session:
         raise HTTPException(status_code=400, detail="请先创建项目")
-    
+
     if task_id not in current_session.tasks:
         raise HTTPException(status_code=404, detail="任务不存在")
-    
+
     task = current_session.tasks[task_id]
     old_state = task.state.value
-    
+
     if task_update.title is not None:
         task.title = task_update.title
     if task_update.description is not None:
@@ -669,51 +948,61 @@ async def update_task(task_id: str, task_update: TaskUpdate):
         task.priority = task_update.priority
     if task_update.notes is not None:
         task.notes = task_update.notes
-    
+
     task.updated_at = datetime.now()
-    
+
     storage.save_session(current_session)
     logger.info(f"Task updated: {task.title} ({old_state} -> {task.state.value})")
-    
+
     await manager.broadcast({
         "type": "task_updated",
         "task": task.to_dict(),
         "old_state": old_state,
         "new_state": task.state.value
     })
-    
+
     return {"task": task.to_dict()}
 
 
-@app.delete("/api/tasks/{task_id}")
+@app.delete("/api/tasks/{task_id}", tags=["tasks"], summary="删除任务", description="删除指定的任务")
 @log_request
 async def delete_task(task_id: str):
+    """删除任务
+
+    从当前会话中删除指定的任务。此操作不可撤销。
+
+    - **task_id**: 要删除的任务 ID
+    """
     global current_session
-    
+
     if not current_session:
         raise HTTPException(status_code=400, detail="请先创建项目")
-    
+
     if task_id not in current_session.tasks:
         raise HTTPException(status_code=404, detail="任务不存在")
-    
+
     task_title = current_session.tasks[task_id].title
     del current_session.tasks[task_id]
     storage.save_session(current_session)
     logger.info(f"Task deleted: {task_title}")
-    
+
     await manager.broadcast({
         "type": "task_deleted",
         "task_id": task_id
     })
-    
+
     return {"status": "ok"}
 
 
-@app.get("/api/agents")
+@app.get("/api/agents", tags=["agents"], summary="获取智能体列表", description="获取所有可用的智能体角色")
 @log_request
 async def get_agents():
+    """获取智能体列表
+
+    返回系统中所有可用的智能体角色及其描述。
+    """
     from core.agents import AGENT_SYSTEM_PROMPTS, AgentRole
-    
+
     agents = []
     for role in AgentRole:
         if role != AgentRole.ORCHESTRATOR:
@@ -722,21 +1011,30 @@ async def get_agents():
                 "name": role.value.upper(),
                 "description": AGENT_SYSTEM_PROMPTS[role].split("\n")[0][:50]
             })
-    
+
     return {"agents": agents}
 
 
-@app.get("/api/handover")
+@app.get("/api/handover", tags=["chat"], summary="获取交接文档", description="获取会话结束时生成的交接文档")
 @log_request
 async def get_handover():
+    """获取交接文档
+
+    返回当前会话结束时的交接文档（如果有的话）。
+    交接文档包含项目总结、任务状态、重要决策等信息。
+    """
     if not current_session or not current_session.handover_doc:
         return {"handover": None}
-    
+
     return {"handover": current_session.handover_doc}
 
 
-@app.get("/api/health")
+@app.get("/api/health", tags=["health"], summary="健康检查", description="检查系统运行状态")
 async def health_check():
+    """健康检查
+
+    返回系统当前的运行状态，包括版本信息、活跃连接数等。
+    """
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
