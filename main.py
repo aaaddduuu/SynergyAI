@@ -16,7 +16,7 @@ import time
 from collections import defaultdict
 import asyncio
 
-from core.storage import Session, Storage, Task, TaskState, AgentRole, Message
+from core.storage import Session, Storage, Task, TaskState, AgentRole, Message, Team, Project, TeamMember, TeamRole
 from core.model_config import model_config_manager, ModelConfig, AgentModelConfig, MODEL_OPTIONS, PROVIDER_BASE_URLS
 from core.orchestrator import MultiAgentOrchestrator
 from core.auth import auth_manager, User, UserRole, hash_password
@@ -344,6 +344,14 @@ app = FastAPI(
         {
             "name": "health",
             "description": "健康检查和系统状态"
+        },
+        {
+            "name": "teams",
+            "description": "团队管理相关接口"
+        },
+        {
+            "name": "projects",
+            "description": "项目管理相关接口"
         }
     ]
 )
@@ -732,6 +740,64 @@ class BatchConfigRequest(BaseModel):
         }
 
 
+class TeamCreate(BaseModel):
+    """团队创建请求"""
+    name: str
+    description: str = ""
+
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError("团队名称不能为空")
+        if len(v) > 100:
+            raise ValueError("团队名称不能超过100字符")
+        return v.strip()
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "开发团队",
+                "description": "主要负责产品开发"
+            }
+        }
+
+
+class TeamUpdate(BaseModel):
+    """团队更新请求"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class ProjectCreate(BaseModel):
+    """项目创建请求"""
+    team_id: str
+    name: str
+    description: str = ""
+
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError("项目名称不能为空")
+        if len(v) > 100:
+            raise ValueError("项目名称不能超过100字符")
+        return v.strip()
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "team_id": "team-123",
+                "name": "AI助手项目",
+                "description": "开发智能协作助手"
+            }
+        }
+
+
+class ProjectUpdate(BaseModel):
+    """项目更新请求"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
 def log_request(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
@@ -1067,14 +1133,18 @@ async def handle_websocket_message(data: dict, websocket: WebSocket):
 
     elif msg_type == "create_session":
         async with session_creation_lock:
-            session = Session()
+            team_id = data.get("team_id")
+            project_id = data.get("project_id")
+            session = Session(team_id=team_id, project_id=project_id)
             current_session = session
             storage.save_session(session)
-            logger.info(f"Session created: {session.id}")
+            logger.info(f"Session created: {session.id} (team: {team_id}, project: {project_id})")
 
             await manager.send_personal_message({
                 "type": "session_created",
                 "session_id": session.id,
+                "team_id": team_id,
+                "project_id": project_id,
                 "message": "新项目创建成功！"
             }, websocket)
 
@@ -1092,26 +1162,36 @@ async def handle_websocket_message(data: dict, websocket: WebSocket):
 
 @app.post("/api/session", tags=["session"], summary="创建会话", description="创建新的协作会话（项目）")
 @log_request
-async def create_session():
+async def create_session(team_id: Optional[str] = None, project_id: Optional[str] = None):
     """创建新会话
 
     创建一个新的协作会话，用于管理一个独立的项目或任务。
     返回会话 ID，用于后续的消息发送和任务管理。
+
+    - **team_id**: 团队 ID (可选)
+    - **project_id**: 项目 ID (可选)
     """
     global current_session
 
-    session = Session()
+    session = Session(team_id=team_id, project_id=project_id)
     current_session = session
     storage.save_session(session)
-    logger.info(f"Session created via API: {session.id}")
+    logger.info(f"Session created via API: {session.id} (team: {team_id}, project: {project_id})")
 
     await manager.broadcast({
         "type": "session_created",
         "session_id": session.id,
+        "team_id": team_id,
+        "project_id": project_id,
         "message": "新项目创建成功！"
     })
 
-    return {"session_id": session.id, "message": "新项目创建成功！"}
+    return {
+        "session_id": session.id,
+        "team_id": team_id,
+        "project_id": project_id,
+        "message": "新项目创建成功！"
+    }
 
 
 @app.get("/api/session", tags=["session"], summary="获取当前会话", description="获取当前活跃会话的信息")
@@ -1786,6 +1866,435 @@ async def get_feature(feature_id: str):
         raise HTTPException(status_code=404, detail=f"功能 {feature_id} 不存在")
 
     return feature_list.features[feature_id].to_dict()
+
+
+# ============ 团队管理 API ============
+
+@app.post("/api/teams", tags=["teams"], summary="创建团队", description="创建新团队")
+@log_request
+async def create_team(team_data: TeamCreate, request: Request):
+    """创建新团队
+
+    创建一个新的团队。
+
+    - **name**: 团队名称 (必填，1-100 字符)
+    - **description**: 团队描述 (可选)
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+    user = auth_manager.get_user_by_id(user_id)
+
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在")
+
+    # 创建团队
+    team = Team(
+        id=str(uuid.uuid4()),
+        name=team_data.name,
+        description=team_data.description,
+        owner_id=user.id
+    )
+
+    # 添加创建者为团队所有者
+    owner_member = TeamMember(
+        user_id=user.id,
+        username=user.username,
+        role=TeamRole.OWNER
+    )
+    team.members[user.id] = owner_member
+
+    # 保存到数据库
+    if not storage.create_team(team):
+        raise HTTPException(status_code=400, detail="创建团队失败")
+
+    logger.info(f"Team created: {team.name} by {user.username}")
+
+    await manager.broadcast({
+        "type": "team_created",
+        "team": team.to_dict()
+    })
+
+    return {
+        "message": "团队创建成功",
+        "team": team.to_dict()
+    }
+
+
+@app.get("/api/teams", tags=["teams"], summary="获取团队列表", description="获取用户所属的团队列表")
+@log_request
+async def list_teams(request: Request):
+    """获取团队列表
+
+    返回当前用户所属的所有团队。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+
+    # 获取所有团队
+    all_teams = storage.list_teams()
+
+    # 过滤出用户所属的团队
+    user_teams = [team for team in all_teams if user_id in team.members]
+
+    return {
+        "teams": [team.to_dict() for team in user_teams],
+        "total": len(user_teams)
+    }
+
+
+@app.get("/api/teams/{team_id}", tags=["teams"], summary="获取团队详情", description="获取指定团队的详细信息")
+@log_request
+async def get_team(team_id: str, request: Request):
+    """获取团队详情
+
+    返回指定团队的详细信息。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    team = storage.get_team(team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="团队不存在")
+
+    return team.to_dict()
+
+
+@app.put("/api/teams/{team_id}", tags=["teams"], summary="更新团队信息", description="更新团队名称和描述")
+@log_request
+async def update_team(team_id: str, team_update: TeamUpdate, request: Request):
+    """更新团队信息
+
+    更新团队的名称和描述。只有团队所有者可以更新。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+
+    team = storage.get_team(team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="团队不存在")
+
+    # 检查权限：只有所有者可以更新
+    if team.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="只有团队所有者可以更新团队信息")
+
+    # 更新字段
+    if team_update.name is not None:
+        team.name = team_update.name
+    if team_update.description is not None:
+        team.description = team_update.description
+
+    # 保存更新
+    if not storage.update_team(team):
+        raise HTTPException(status_code=400, detail="更新团队失败")
+
+    logger.info(f"Team updated: {team_id}")
+
+    await manager.broadcast({
+        "type": "team_updated",
+        "team": team.to_dict()
+    })
+
+    return {
+        "message": "团队信息更新成功",
+        "team": team.to_dict()
+    }
+
+
+@app.delete("/api/teams/{team_id}", tags=["teams"], summary="删除团队", description="删除指定团队")
+@log_request
+async def delete_team(team_id: str, request: Request):
+    """删除团队
+
+    删除指定的团队及其所有项目。只有团队所有者可以删除。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+
+    team = storage.get_team(team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="团队不存在")
+
+    # 检查权限：只有所有者可以删除
+    if team.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="只有团队所有者可以删除团队")
+
+    # 删除团队下的所有项目
+    projects = storage.list_projects(team_id)
+    for project in projects:
+        storage.delete_project(project.id)
+
+    # 删除团队
+    if not storage.delete_team(team_id):
+        raise HTTPException(status_code=400, detail="删除团队失败")
+
+    logger.info(f"Team deleted: {team_id}")
+
+    await manager.broadcast({
+        "type": "team_deleted",
+        "team_id": team_id
+    })
+
+    return {"status": "ok", "message": "团队删除成功"}
+
+
+# ============ 项目管理 API ============
+
+@app.post("/api/projects", tags=["projects"], summary="创建项目", description="在团队中创建新项目")
+@log_request
+async def create_project(project_data: ProjectCreate, request: Request):
+    """创建新项目
+
+    在指定团队中创建一个新项目。
+
+    - **team_id**: 团队 ID (必填)
+    - **name**: 项目名称 (必填，1-100 字符)
+    - **description**: 项目描述 (可选)
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+    user = auth_manager.get_user_by_id(user_id)
+
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在")
+
+    # 验证团队存在
+    team = storage.get_team(project_data.team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="团队不存在")
+
+    # 验证用户是团队成员
+    if user_id not in team.members:
+        raise HTTPException(status_code=403, detail="只有团队成员才能创建项目")
+
+    # 创建项目
+    project = Project(
+        id=str(uuid.uuid4()),
+        team_id=project_data.team_id,
+        name=project_data.name,
+        description=project_data.description,
+        owner_id=user.id
+    )
+
+    # 保存到数据库
+    if not storage.create_project(project):
+        raise HTTPException(status_code=400, detail="创建项目失败")
+
+    logger.info(f"Project created: {project.name} in team {project_data.team_id}")
+
+    await manager.broadcast({
+        "type": "project_created",
+        "project": project.to_dict()
+    })
+
+    return {
+        "message": "项目创建成功",
+        "project": project.to_dict()
+    }
+
+
+@app.get("/api/projects", tags=["projects"], summary="获取项目列表", description="获取项目列表")
+@log_request
+async def list_projects(request: Request, team_id: Optional[str] = None):
+    """获取项目列表
+
+    返回项目列表。可以通过 team_id 参数筛选特定团队的项目。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+
+    # 获取项目列表
+    if team_id:
+        projects = storage.list_projects(team_id)
+    else:
+        # 如果没有指定团队，返回用户所有团队的项目
+        all_teams = storage.list_teams()
+        user_teams = [team for team in all_teams if user_id in team.members]
+
+        projects = []
+        for team in user_teams:
+            team_projects = storage.list_projects(team.id)
+            projects.extend(team_projects)
+
+    return {
+        "projects": [project.to_dict() for project in projects],
+        "total": len(projects)
+    }
+
+
+@app.get("/api/projects/{project_id}", tags=["projects"], summary="获取项目详情", description="获取指定项目的详细信息")
+@log_request
+async def get_project(project_id: str, request: Request):
+    """获取项目详情
+
+    返回指定项目的详细信息。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    project = storage.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+
+    return project.to_dict()
+
+
+@app.put("/api/projects/{project_id}", tags=["projects"], summary="更新项目信息", description="更新项目名称和描述")
+@log_request
+async def update_project(project_id: str, project_update: ProjectUpdate, request: Request):
+    """更新项目信息
+
+    更新项目的名称和描述。只有项目创建者可以更新。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+
+    project = storage.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+
+    # 检查权限：只有创建者可以更新
+    if project.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="只有项目创建者可以更新项目信息")
+
+    # 更新字段
+    if project_update.name is not None:
+        project.name = project_update.name
+    if project_update.description is not None:
+        project.description = project_update.description
+
+    # 保存更新
+    if not storage.update_project(project):
+        raise HTTPException(status_code=400, detail="更新项目失败")
+
+    logger.info(f"Project updated: {project_id}")
+
+    await manager.broadcast({
+        "type": "project_updated",
+        "project": project.to_dict()
+    })
+
+    return {
+        "message": "项目信息更新成功",
+        "project": project.to_dict()
+    }
+
+
+@app.delete("/api/projects/{project_id}", tags=["projects"], summary="删除项目", description="删除指定项目")
+@log_request
+async def delete_project(project_id: str, request: Request):
+    """删除项目
+
+    删除指定的项目。只有项目创建者可以删除。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+
+    project = storage.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+
+    # 检查权限：只有创建者可以删除
+    if project.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="只有项目创建者可以删除项目")
+
+    # 删除项目
+    if not storage.delete_project(project_id):
+        raise HTTPException(status_code=400, detail="删除项目失败")
+
+    logger.info(f"Project deleted: {project_id}")
+
+    await manager.broadcast({
+        "type": "project_deleted",
+        "project_id": project_id
+    })
+
+    return {"status": "ok", "message": "项目删除成功"}
 
 
 if __name__ == "__main__":

@@ -11,6 +11,14 @@ from contextlib import contextmanager
 import threading
 
 
+class TeamRole(str, Enum):
+    """团队成员角色"""
+    OWNER = "owner"
+    ADMIN = "admin"
+    MEMBER = "member"
+    GUEST = "guest"
+
+
 class TaskState(str, Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
@@ -114,9 +122,74 @@ class Agent:
         }
 
 
+@dataclass
+class TeamMember:
+    """团队成员"""
+    user_id: str
+    username: str
+    role: TeamRole
+    joined_at: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self):
+        return {
+            "user_id": self.user_id,
+            "username": self.username,
+            "role": self.role.value,
+            "joined_at": self.joined_at.isoformat()
+        }
+
+
+@dataclass
+class Team:
+    """团队数据模型"""
+    id: str
+    name: str
+    description: str
+    owner_id: str
+    members: Dict[str, TeamMember] = field(default_factory=dict)
+    created_at: datetime = field(default_factory=datetime.now)
+    is_active: bool = True
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "owner_id": self.owner_id,
+            "members": {k: v.to_dict() for k, v in self.members.items()},
+            "created_at": self.created_at.isoformat(),
+            "is_active": self.is_active
+        }
+
+
+@dataclass
+class Project:
+    """项目数据模型（相当于 Session）"""
+    id: str
+    team_id: str
+    name: str
+    description: str
+    owner_id: str
+    created_at: datetime = field(default_factory=datetime.now)
+    is_active: bool = True
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "team_id": self.team_id,
+            "name": self.name,
+            "description": self.description,
+            "owner_id": self.owner_id,
+            "created_at": self.created_at.isoformat(),
+            "is_active": self.is_active
+        }
+
+
 class Session:
-    def __init__(self, id: Optional[str] = None):
+    def __init__(self, id: Optional[str] = None, team_id: Optional[str] = None, project_id: Optional[str] = None):
         self.id = id or str(uuid.uuid4())
+        self.team_id = team_id
+        self.project_id = project_id
         self.messages: List[Message] = []
         self.agents: Dict[str, Agent] = {}
         self.tasks: Dict[str, Task] = {}
@@ -290,12 +363,36 @@ class Storage:
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
+            # 创建 teams 表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS teams (
+                    id TEXT PRIMARY KEY,
+                    data TEXT,
+                    created_at TEXT
+                )
+            """)
+
+            # 创建 projects 表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS projects (
+                    id TEXT PRIMARY KEY,
+                    team_id TEXT NOT NULL,
+                    data TEXT,
+                    created_at TEXT,
+                    FOREIGN KEY (team_id) REFERENCES teams(id)
+                )
+            """)
+
             # 创建 sessions 表
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     id TEXT PRIMARY KEY,
+                    team_id TEXT,
+                    project_id TEXT,
                     data TEXT,
-                    created_at TEXT
+                    created_at TEXT,
+                    FOREIGN KEY (team_id) REFERENCES teams(id),
+                    FOREIGN KEY (project_id) REFERENCES projects(id)
                 )
             """)
 
@@ -303,6 +400,21 @@ class Storage:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_sessions_created_at
                 ON sessions(created_at DESC)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sessions_team_id
+                ON sessions(team_id)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sessions_project_id
+                ON sessions(project_id)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_projects_team_id
+                ON projects(team_id)
             """)
 
             conn.commit()
@@ -313,6 +425,8 @@ class Storage:
 
             session_data = {
                 "id": session.id,
+                "team_id": session.team_id,
+                "project_id": session.project_id,
                 "messages": [m.to_dict() for m in session.messages],
                 "agents": {k: v.to_dict() for k, v in session.agents.items()},
                 "tasks": {k: v.to_dict() for k, v in session.tasks.items()},
@@ -322,8 +436,8 @@ class Storage:
             }
 
             cursor.execute(
-                "INSERT OR REPLACE INTO sessions (id, data, created_at) VALUES (?, ?, ?)",
-                (session.id, json.dumps(session_data), session.created_at.isoformat())
+                "INSERT OR REPLACE INTO sessions (id, team_id, project_id, data, created_at) VALUES (?, ?, ?, ?, ?)",
+                (session.id, session.team_id, session.project_id, json.dumps(session_data), session.created_at.isoformat())
             )
 
             conn.commit()
@@ -339,7 +453,7 @@ class Storage:
                 return None
 
             data = json.loads(row[0])
-            session = Session(data["id"])
+            session = Session(data["id"], data.get("team_id"), data.get("project_id"))
             session.turn_count = data.get("turn_count", 0)
             session.is_active = data.get("is_active", True)
             session.handover_doc = data.get("handover_doc")
@@ -393,3 +507,198 @@ class Storage:
             rows = cursor.fetchall()
 
             return [{"id": r[0], "created_at": r[1]} for r in rows]
+
+    # ========== 团队管理方法 ==========
+
+    def create_team(self, team: Team) -> bool:
+        """创建新团队"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            try:
+                cursor.execute(
+                    "INSERT INTO teams (id, data, created_at) VALUES (?, ?, ?)",
+                    (team.id, json.dumps(team.to_dict()), team.created_at.isoformat())
+                )
+                conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False
+
+    def get_team(self, team_id: str) -> Optional[Team]:
+        """获取团队信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT data FROM teams WHERE id = ?", (team_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            data = json.loads(row[0])
+            members = {}
+            for k, v in data.get("members", {}).items():
+                members[k] = TeamMember(
+                    user_id=v["user_id"],
+                    username=v["username"],
+                    role=TeamRole(v["role"]),
+                    joined_at=datetime.fromisoformat(v["joined_at"])
+                )
+
+            return Team(
+                id=data["id"],
+                name=data["name"],
+                description=data["description"],
+                owner_id=data["owner_id"],
+                members=members,
+                created_at=datetime.fromisoformat(data["created_at"]),
+                is_active=data.get("is_active", True)
+            )
+
+    def list_teams(self) -> List[Team]:
+        """获取所有团队列表"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT data FROM teams ORDER BY created_at DESC")
+            rows = cursor.fetchall()
+
+            teams = []
+            for row in rows:
+                data = json.loads(row[0])
+                members = {}
+                for k, v in data.get("members", {}).items():
+                    members[k] = TeamMember(
+                        user_id=v["user_id"],
+                        username=v["username"],
+                        role=TeamRole(v["role"]),
+                        joined_at=datetime.fromisoformat(v["joined_at"])
+                    )
+
+                teams.append(Team(
+                    id=data["id"],
+                    name=data["name"],
+                    description=data["description"],
+                    owner_id=data["owner_id"],
+                    members=members,
+                    created_at=datetime.fromisoformat(data["created_at"]),
+                    is_active=data.get("is_active", True)
+                ))
+
+            return teams
+
+    def update_team(self, team: Team) -> bool:
+        """更新团队信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "UPDATE teams SET data = ? WHERE id = ?",
+                (json.dumps(team.to_dict()), team.id)
+            )
+            conn.commit()
+
+            return cursor.rowcount > 0
+
+    def delete_team(self, team_id: str) -> bool:
+        """删除团队"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("DELETE FROM teams WHERE id = ?", (team_id,))
+            conn.commit()
+
+            return cursor.rowcount > 0
+
+    # ========== 项目管理方法 ==========
+
+    def create_project(self, project: Project) -> bool:
+        """创建新项目"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            try:
+                cursor.execute(
+                    "INSERT INTO projects (id, team_id, data, created_at) VALUES (?, ?, ?, ?)",
+                    (project.id, project.team_id, json.dumps(project.to_dict()), project.created_at.isoformat())
+                )
+                conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False
+
+    def get_project(self, project_id: str) -> Optional[Project]:
+        """获取项目信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT data FROM projects WHERE id = ?", (project_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            data = json.loads(row[0])
+            return Project(
+                id=data["id"],
+                team_id=data["team_id"],
+                name=data["name"],
+                description=data["description"],
+                owner_id=data["owner_id"],
+                created_at=datetime.fromisoformat(data["created_at"]),
+                is_active=data.get("is_active", True)
+            )
+
+    def list_projects(self, team_id: Optional[str] = None) -> List[Project]:
+        """获取项目列表"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            if team_id:
+                cursor.execute(
+                    "SELECT data FROM projects WHERE team_id = ? ORDER BY created_at DESC",
+                    (team_id,)
+                )
+            else:
+                cursor.execute("SELECT data FROM projects ORDER BY created_at DESC")
+
+            rows = cursor.fetchall()
+
+            projects = []
+            for row in rows:
+                data = json.loads(row[0])
+                projects.append(Project(
+                    id=data["id"],
+                    team_id=data["team_id"],
+                    name=data["name"],
+                    description=data["description"],
+                    owner_id=data["owner_id"],
+                    created_at=datetime.fromisoformat(data["created_at"]),
+                    is_active=data.get("is_active", True)
+                ))
+
+            return projects
+
+    def update_project(self, project: Project) -> bool:
+        """更新项目信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "UPDATE projects SET data = ? WHERE id = ?",
+                (json.dumps(project.to_dict()), project.id)
+            )
+            conn.commit()
+
+            return cursor.rowcount > 0
+
+    def delete_project(self, project_id: str) -> bool:
+        """删除项目"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+            conn.commit()
+
+            return cursor.rowcount > 0

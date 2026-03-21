@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>系统诊断工具</title>
+</head>
+<body>
+    <h1>SynergyAI 系统诊断</h1>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+
+        function log(message) {
+            const p = document.createElement('p');
+            p.textContent = message;
+            output.appendChild(p);
+            console.log(message);
+        }
+
+        async function checkBackend() {
+            log('1. 检查后端服务...');
+            try {
+                const response = await fetch('http://localhost:8000/');
+                log('   ✅ 后端服务正常运行');
+            } catch (e) {
+                log('   ❌ 后端服务无法访问: ' + e.message);
+            }
+        }
+
+        async function checkWebSocket() {
+            log('2. 检查 WebSocket 连接...');
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
+
+            try {
+                const ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    log('   ✅ WebSocket 连接成功');
+                    log('   发送测试消息...');
+
+                    // 测试创建会话
+                    ws.send(JSON.stringify({ type: 'create_session' }));
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    log('   ✅ 收到消息: ' + JSON.stringify(data));
+                };
+
+                ws.onerror = (error) => {
+                    log('   ❌ WebSocket 错误: ' + error);
+                };
+
+                ws.onclose = () => {
+                    log('   WebSocket 连接已关闭');
+                };
+
+                // 5秒后关闭
+                setTimeout(() => ws.close(), 5000);
+            } catch (e) {
+                log('   ❌ WebSocket 连接失败: ' + e.message);
+            }
+        }
+
+        async function checkAPI(endpoint, name) {
+            try {
+                const response = await fetch(`http://localhost:8000${endpoint}`);
+                const data = await response.json();
+                log(`   ✅ ${name}: ${JSON.stringify(data).substring(0, 100)}...`);
+            } catch (e) {
+                log(`   ❌ ${name} 请求失败: ${e.message}`);
+            }
+        }
+
+        async function checkData() {
+            log('3. 检查数据...');
+            await checkAPI('/api/sessions', '会话列表');
+            await checkAPI('/api/tasks', '任务列表');
+            await checkAPI('/api/config', '配置信息');
+        }
+
+        // 运行所有检查
+        (async () => {
+            await checkBackend();
+            await checkWebSocket();
+            await checkData();
+            log('诊断完成！');
+        })();
+    </script>
+</body>
+</html>

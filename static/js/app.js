@@ -1,5 +1,7 @@
 // Global state
 let currentSessionId = null;
+let currentTeamId = null;
+let currentProjectId = null;
 let selectedAgent = null;
 let ws = null;
 let wsConnected = false;
@@ -7,6 +9,8 @@ let reconnectAttempts = 0;
 const maxReconnectAttempts = 5;
 let typingTimeout = null;
 let isCreatingSession = false;
+let allTeams = [];
+let allProjects = [];
 
 const agentNames = {
     'hr': 'HR',
@@ -1518,6 +1522,141 @@ async function authFetch(url, options = {}) {
     }
 
     return response;
+}
+
+// ==================== Team & Project Management ====================
+
+async function loadTeams() {
+    try {
+        const response = await authFetch('/api/teams');
+        if (!response.ok) throw new Error('获取团队列表失败');
+
+        const data = await response.json();
+        allTeams = data.teams || [];
+        return allTeams;
+    } catch (error) {
+        console.error('Failed to load teams:', error);
+        showToast('error', '错误', error.message);
+        return [];
+    }
+}
+
+async function loadProjects(teamId = null) {
+    try {
+        const url = teamId ? `/api/projects?team_id=${teamId}` : '/api/projects';
+        const response = await authFetch(url);
+        if (!response.ok) throw new Error('获取项目列表失败');
+
+        const data = await response.json();
+        allProjects = data.projects || [];
+        return allProjects;
+    } catch (error) {
+        console.error('Failed to load projects:', error);
+        showToast('error', '错误', error.message);
+        return [];
+    }
+}
+
+async function createTeam(name, description) {
+    try {
+        const response = await authFetch('/api/teams', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name, description })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || '创建团队失败');
+        }
+
+        const data = await response.json();
+        await loadTeams();
+        showToast('success', '成功', data.message);
+        return data.team;
+    } catch (error) {
+        console.error('Failed to create team:', error);
+        showToast('error', '错误', error.message);
+        return null;
+    }
+}
+
+async function createProject(teamId, name, description) {
+    try {
+        const response = await authFetch('/api/projects', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ team_id: teamId, name, description })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || '创建项目失败');
+        }
+
+        const data = await response.json();
+        await loadProjects(teamId);
+        showToast('success', '成功', data.message);
+        return data.project;
+    } catch (error) {
+        console.error('Failed to create project:', error);
+        showToast('error', '错误', error.message);
+        return null;
+    }
+}
+
+async function switchTeam(teamId) {
+    currentTeamId = teamId;
+    await loadProjects(teamId);
+    updateTeamProjectUI();
+    showToast('success', '成功', `已切换到团队: ${teamId}`);
+}
+
+async function switchProject(projectId) {
+    currentProjectId = projectId;
+    const project = allProjects.find(p => p.id === projectId);
+    if (project) {
+        showToast('success', '成功', `已选择项目: ${project.name}`);
+    }
+}
+
+function updateTeamProjectUI() {
+    const teamSelect = document.getElementById('teamSelect');
+    const projectSelect = document.getElementById('projectSelect');
+
+    if (teamSelect) {
+        teamSelect.innerHTML = '<option value="">选择团队...</option>' +
+            allTeams.map(team =>
+                `<option value="${team.id}" ${team.id === currentTeamId ? 'selected' : ''}>
+                    ${team.name}
+                </option>`
+            ).join('');
+    }
+
+    if (projectSelect) {
+        projectSelect.innerHTML = '<option value="">选择项目...</option>' +
+            allProjects.map(project =>
+                `<option value="${project.id}" ${project.id === currentProjectId ? 'selected' : ''}>
+                    ${project.name}
+                </option>`
+            ).join('');
+    }
+}
+
+// Enhanced create session with team/project context
+function createSessionWithTeamProject(teamId, projectId) {
+    currentTeamId = teamId;
+    currentProjectId = projectId;
+
+    sendWsMessage({
+        type: 'create_session',
+        team_id: teamId,
+        project_id: projectId
+    });
 }
 
 window.addEventListener('DOMContentLoaded', () => {
