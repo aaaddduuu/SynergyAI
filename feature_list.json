@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T13:04:22.094174",
+  "last_updated": "2026-03-21T13:43:41.911506",
   "features": [
     {
       "id": "feat-001",
@@ -132,7 +132,7 @@
       "priority": "medium",
       "title": "用户认证系统",
       "description": "实现用户注册、登录、权限管理功能",
-      "status": "pending",
+      "status": "done",
       "assignee_role": "dev",
       "steps": [
         "1. 设计用户数据模型",
@@ -142,10 +142,10 @@
         "5. 前端登录页面",
         "6. 测试认证流程"
       ],
-      "passes": false,
-      "notes": "需要密码加密、会话管理",
+      "passes": true,
+      "notes": "已完成用户注册、登录API，JWT token管理，权限装饰器，前端登录页面。所有测试通过（19个测试用例）。",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:21:35.556478"
+      "updated_at": "2026-03-21T14:00:00.000000"
     },
     {
       "id": "feat-009",
@@ -419,10 +419,10 @@
   "statistics": {
     "total": 20,
     "by_status": {
-      "pending": 14,
+      "pending": 10,
       "in_progress": 1,
       "review": 0,
-      "done": 5
+      "done": 9
     },
     "by_priority": {
       "high": 4,
@@ -434,12 +434,12 @@
       "deployment": 1,
       "documentation": 2,
       "ui_enhancement": 1,
-      "testing": 2,
       "refactoring": 2,
       "feature": 6,
       "improvement": 2,
       "automation": 1,
-      "quality": 2
+      "quality": 2,
+      "testing": 2
     }
   }
 }
