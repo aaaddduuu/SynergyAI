@@ -21,6 +21,13 @@ from core.model_config import model_config_manager, ModelConfig, AgentModelConfi
 from core.orchestrator import MultiAgentOrchestrator
 from core.auth import auth_manager, User, UserRole, hash_password
 from core.plugins import plugin_manager, AgentPlugin
+from core.config import settings
+from core.security import (
+    SecurityMiddleware,
+    csrf_manager,
+    security_logger
+)
+from core.security import SecurityValidator
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 logs_dir = os.path.join(BASE_DIR, "logs")
@@ -358,15 +365,21 @@ app = FastAPI(
 )
 
 
-# ============ CORS 配置 ============
+# ============ 安全配置 ============
 
+# CORS 配置（使用配置化的允许列表）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有来源（开发环境）
-    allow_credentials=True,
-    allow_methods=["*"],  # 允许所有方法
-    allow_headers=["*"],  # 允许所有请求头
+    allow_origins=settings.cors_origins,  # 从配置读取允许的来源
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=settings.cors_allow_methods,
+    allow_headers=settings.cors_allow_headers,
+    expose_headers=settings.cors_expose_headers,
 )
+
+# 添加安全中间件
+if settings.csrf_enabled or settings.rate_limit_enabled:
+    app.add_middleware(SecurityMiddleware)
 
 
 # ============ 性能监控中间件 ============
@@ -1656,6 +1669,39 @@ async def list_users(request: Request):
     }
 
 
+@app.get("/api/auth/csrf-token", tags=["auth"], summary="获取 CSRF Token", description="获取新的 CSRF 保护令牌")
+@log_request
+async def get_csrf_token(request: Request):
+    """获取 CSRF Token
+
+    返回一个新的 CSRF token 用于保护状态改变的请求。
+    前端需要在 POST/PUT/DELETE/PATCH 请求的 X-CSRF-Token 头中携带此 token。
+    """
+    try:
+        # 从 cookie 或 session 获取 session_id
+        session_id = request.cookies.get("session_id") or str(uuid.uuid4())
+
+        # 生成 CSRF token
+        csrf_token = csrf_manager.generate_token(session_id)
+
+        # 记录安全日志
+        security_logger.log_security_event(
+            event_type="CSRF_TOKEN_GENERATED",
+            severity="low",
+            details={"session_id": session_id},
+            request=request
+        )
+
+        return {
+            "csrf_token": csrf_token,
+            "session_id": session_id
+        }
+
+    except Exception as e:
+        logger.error(f"CSRF token generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail="生成 CSRF token 失败")
+
+
 @app.get("/api/health", tags=["health"], summary="健康检查", description="检查系统运行状态")
 async def health_check():
     """健康检查
@@ -2348,9 +2394,9 @@ class PluginUpdate(BaseModel):
 @app.get("/api/plugins", tags=["plugins"], summary="获取插件列表", description="获取所有自定义智能体插件")
 @log_request
 async def list_plugins(
+    request: Request,
     enabled_only: bool = False,
-    keyword: str = None,
-    request: Request
+    keyword: Optional[str] = None
 ):
     """获取插件列表
 
