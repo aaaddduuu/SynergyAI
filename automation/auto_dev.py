@@ -183,7 +183,7 @@ class AutoDeveloper:
                 stdout = str(result.stdout)
                 stderr = str(result.stderr)
 
-            # 检测常见的错误（token 限制、会话过长等）
+            # 检测常见的错误（token 限制、会话过长、速率限制等）
             error_indicators = [
                 "token",
                 "too long",
@@ -191,15 +191,26 @@ class AutoDeveloper:
                 "limit",
                 "context",
                 "memory",
-                "/clear"
+                "/clear",
+                "429",  # API 速率限制
+                "rate limit",
+                "速率限制"
             ]
 
             combined_output = (stdout + stderr).lower()
             has_context_error = any(indicator in combined_output for indicator in error_indicators)
 
+            # 特别检测 API 429 速率限制
+            if "429" in combined_output or "rate limit" in combined_output:
+                self.log("=" * 80)
+                self.log("检测到 API 速率限制 (429)")
+                self.log("这通常是临时性的，建议等待一段时间后重试")
+                self.log("=" * 80)
+                has_context_error = True
+
             if has_context_error:
-                self.log("警告: 检测到会话长度或 token 限制相关错误")
-                self.log("这通常不影响执行，但如果频繁出现，请考虑减少任务复杂度")
+                self.log("警告: 检测到错误，可能需要重试")
+                self.log("建议：如果频繁出现，考虑在任务间增加延迟")
 
             # 记录输出（限制行数避免日志过大）
             if stdout:
@@ -453,10 +464,10 @@ class AutoDeveloper:
 
             iteration += 1
 
-            # 等待一段时间再继续
+            # 等待一段时间再继续（避免API速率限制）
             if iteration < (max_iterations or float('inf')):
-                self.log("\n等待 10 秒后继续下一个任务...\n")
-                time.sleep(10)
+                self.log("\n等待 60 秒后继续下一个任务（避免API速率限制）...\n")
+                time.sleep(60)  # 增加到60秒，避免触发429速率限制
 
         # 打印最终报告
         self.log("\n" + "=" * 80)
