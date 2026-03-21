@@ -20,6 +20,7 @@ from core.storage import Session, Storage, Task, TaskState, AgentRole, Message, 
 from core.model_config import model_config_manager, ModelConfig, AgentModelConfig, MODEL_OPTIONS, PROVIDER_BASE_URLS
 from core.orchestrator import MultiAgentOrchestrator
 from core.auth import auth_manager, User, UserRole, hash_password
+from core.plugins import plugin_manager, AgentPlugin
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 logs_dir = os.path.join(BASE_DIR, "logs")
@@ -2295,6 +2296,353 @@ async def delete_project(project_id: str, request: Request):
     })
 
     return {"status": "ok", "message": "项目删除成功"}
+
+
+# ============ 插件管理 API ============
+
+class PluginCreate(BaseModel):
+    """创建插件请求模型"""
+    name: str
+    description: str
+    role: str
+    display_name: str
+    system_prompt: str
+    capabilities: List[str]
+    temperature: float = 0.7
+    max_tokens: int = 2000
+    tags: List[str] = []
+    metadata: Dict[str, Any] = {}
+    author: str = ""
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "数据分析师",
+                "description": "专门进行数据分析和可视化的智能体",
+                "role": "data_analyst",
+                "display_name": "数据分析师",
+                "system_prompt": "你是一位专业的数据分析师...",
+                "capabilities": ["数据分析", "图表生成", "报告撰写"],
+                "temperature": 0.7,
+                "max_tokens": 2000,
+                "tags": ["分析", "数据"],
+                "author": "admin"
+            }
+        }
+
+
+class PluginUpdate(BaseModel):
+    """更新插件请求模型"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    display_name: Optional[str] = None
+    system_prompt: Optional[str] = None
+    capabilities: Optional[List[str]] = None
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    enabled: Optional[bool] = None
+    tags: Optional[List[str]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+@app.get("/api/plugins", tags=["plugins"], summary="获取插件列表", description="获取所有自定义智能体插件")
+@log_request
+async def list_plugins(
+    enabled_only: bool = False,
+    keyword: str = None,
+    request: Request
+):
+    """获取插件列表
+
+    返回所有自定义智能体插件。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    if keyword:
+        plugins = plugin_manager.search_plugins(keyword)
+    else:
+        plugins = plugin_manager.list_plugins(enabled_only=enabled_only)
+
+    return {
+        "plugins": [plugin.to_dict() for plugin in plugins],
+        "total": len(plugins)
+    }
+
+
+@app.get("/api/plugins/{plugin_id}", tags=["plugins"], summary="获取插件详情", description="获取指定插件的详细信息")
+@log_request
+async def get_plugin(plugin_id: str, request: Request):
+    """获取插件详情
+
+    返回指定插件的详细信息。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    plugin = plugin_manager.get_plugin(plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail=f"插件 {plugin_id} 不存在")
+
+    return plugin.to_dict()
+
+
+@app.post("/api/plugins", tags=["plugins"], summary="创建插件", description="创建新的自定义智能体插件")
+@log_request
+async def create_plugin(plugin_data: PluginCreate, request: Request):
+    """创建插件
+
+    创建一个新的自定义智能体插件。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    # 生成插件 ID
+    plugin_id = f"plugin_{uuid.uuid4().hex[:12]}"
+
+    plugin = AgentPlugin(
+        id=plugin_id,
+        name=plugin_data.name,
+        description=plugin_data.description,
+        role=plugin_data.role,
+        display_name=plugin_data.display_name,
+        system_prompt=plugin_data.system_prompt,
+        capabilities=plugin_data.capabilities,
+        temperature=plugin_data.temperature,
+        max_tokens=plugin_data.max_tokens,
+        tags=plugin_data.tags,
+        metadata=plugin_data.metadata,
+        author=plugin_data.author
+    )
+
+    success, message = plugin_manager.create_plugin(plugin)
+
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+
+    logger.info(f"Plugin created: {plugin_id} - {plugin_data.name}")
+
+    return {
+        "message": message,
+        "plugin": plugin.to_dict()
+    }
+
+
+@app.put("/api/plugins/{plugin_id}", tags=["plugins"], summary="更新插件", description="更新指定插件的信息")
+@log_request
+async def update_plugin(plugin_id: str, plugin_data: PluginUpdate, request: Request):
+    """更新插件
+
+    更新指定插件的信息。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    existing_plugin = plugin_manager.get_plugin(plugin_id)
+    if not existing_plugin:
+        raise HTTPException(status_code=404, detail=f"插件 {plugin_id} 不存在")
+
+    # 更新字段
+    if plugin_data.name is not None:
+        existing_plugin.name = plugin_data.name
+    if plugin_data.description is not None:
+        existing_plugin.description = plugin_data.description
+    if plugin_data.display_name is not None:
+        existing_plugin.display_name = plugin_data.display_name
+    if plugin_data.system_prompt is not None:
+        existing_plugin.system_prompt = plugin_data.system_prompt
+    if plugin_data.capabilities is not None:
+        existing_plugin.capabilities = plugin_data.capabilities
+    if plugin_data.temperature is not None:
+        existing_plugin.temperature = plugin_data.temperature
+    if plugin_data.max_tokens is not None:
+        existing_plugin.max_tokens = plugin_data.max_tokens
+    if plugin_data.enabled is not None:
+        existing_plugin.enabled = plugin_data.enabled
+    if plugin_data.tags is not None:
+        existing_plugin.tags = plugin_data.tags
+    if plugin_data.metadata is not None:
+        existing_plugin.metadata = plugin_data.metadata
+
+    success, message = plugin_manager.update_plugin(plugin_id, existing_plugin)
+
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+
+    logger.info(f"Plugin updated: {plugin_id}")
+
+    return {
+        "message": message,
+        "plugin": existing_plugin.to_dict()
+    }
+
+
+@app.delete("/api/plugins/{plugin_id}", tags=["plugins"], summary="删除插件", description="删除指定的插件")
+@log_request
+async def delete_plugin(plugin_id: str, request: Request):
+    """删除插件
+
+    删除指定的插件。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    success, message = plugin_manager.delete_plugin(plugin_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail=message)
+
+    logger.info(f"Plugin deleted: {plugin_id}")
+
+    return {"status": "ok", "message": message}
+
+
+@app.post("/api/plugins/{plugin_id}/enable", tags=["plugins"], summary="启用插件", description="启用指定的插件")
+@log_request
+async def enable_plugin(plugin_id: str, request: Request):
+    """启用插件
+
+    启用指定的插件。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    success, message = plugin_manager.enable_plugin(plugin_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail=message)
+
+    logger.info(f"Plugin enabled: {plugin_id}")
+
+    return {"status": "ok", "message": message}
+
+
+@app.post("/api/plugins/{plugin_id}/disable", tags=["plugins"], summary="禁用插件", description="禁用指定的插件")
+@log_request
+async def disable_plugin(plugin_id: str, request: Request):
+    """禁用插件
+
+    禁用指定的插件。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    success, message = plugin_manager.disable_plugin(plugin_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail=message)
+
+    logger.info(f"Plugin disabled: {plugin_id}")
+
+    return {"status": "ok", "message": message}
+
+
+@app.get("/api/plugins/{plugin_id}/export", tags=["plugins"], summary="导出插件", description="导出指定插件的配置")
+@log_request
+async def export_plugin(plugin_id: str, request: Request):
+    """导出插件
+
+    导出指定插件的配置，用于分享或备份。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    success, message, plugin_data = plugin_manager.export_plugin(plugin_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail=message)
+
+    logger.info(f"Plugin exported: {plugin_id}")
+
+    return {
+        "message": message,
+        "plugin": plugin_data
+    }
+
+
+@app.post("/api/plugins/import", tags=["plugins"], summary="导入插件", description="从配置导入插件")
+@log_request
+async def import_plugin(plugin_data: Dict[str, Any], request: Request):
+    """导入插件
+
+    从配置导入插件。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="需要登录")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    success, message = plugin_manager.import_plugin(plugin_data)
+
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+
+    logger.info(f"Plugin imported")
+
+    return {
+        "message": message
+    }
 
 
 if __name__ == "__main__":

@@ -1311,6 +1311,11 @@ function updateUserUI() {
                     <span>🌙</span>
                     <span>深色模式</span>
                 </button>
+
+                <button onclick="openPluginManagementModal()" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                    <span>🧩</span>
+                    <span>插件管理</span>
+                </button>
             </div>
 
             <div class="p-2 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
@@ -1670,4 +1675,423 @@ window.addEventListener('DOMContentLoaded', () => {
             connectWebSocket();
         }
     }, 30000);
+});
+
+// ============ 插件管理功能 ============
+
+let allPlugins = [];
+let pluginModalElement = null;
+
+// 加载插件列表
+async function loadPlugins() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/plugins', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('加载插件失败');
+        }
+
+        const data = await response.json();
+        allPlugins = data.plugins || [];
+        return allPlugins;
+    } catch (error) {
+        console.error('加载插件失败:', error);
+        showToast('error', '错误', '加载插件列表失败');
+        return [];
+    }
+}
+
+// 渲染插件列表
+function renderPlugins(plugins) {
+    const container = document.getElementById('pluginsContainer');
+    if (!container) return;
+
+    if (plugins.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">暂无插件</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">创建您的第一个自定义智能体插件</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = plugins.map(plugin => `
+        <div class="plugin-card bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            ${plugin.display_name}
+                        </h3>
+                        <span class="plugin-status-badge ${plugin.enabled ? 'plugin-status-enabled' : 'plugin-status-disabled'}">
+                            ${plugin.enabled ? '已启用' : '已禁用'}
+                        </span>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        ${plugin.description}
+                    </p>
+                    <div class="mt-3">
+                        <span class="text-xs text-gray-500 dark:text-gray-500">角色: ${plugin.role}</span>
+                    </div>
+                    <div class="mt-2 flex flex-wrap gap-1">
+                        ${plugin.capabilities.map(cap => `
+                            <span class="plugin-capability-badge">${cap}</span>
+                        `).join('')}
+                    </div>
+                    ${plugin.tags && plugin.tags.length > 0 ? `
+                        <div class="mt-2 flex flex-wrap gap-1">
+                            ${plugin.tags.map(tag => `
+                                <span class="text-xs text-gray-500 dark:text-gray-500">#${tag}</span>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="flex gap-2 ml-4">
+                    <button onclick="editPlugin('${plugin.id}')" class="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 rounded" title="编辑">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                    </button>
+                    <button onclick="togglePlugin('${plugin.id}', ${!plugin.enabled})" class="p-2 ${plugin.enabled ? 'text-yellow-600' : 'text-green-600'} hover:bg-gray-50 dark:hover:bg-gray-700 rounded" title="${plugin.enabled ? '禁用' : '启用'}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            ${plugin.enabled ?
+                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />' :
+                                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />'
+                            }
+                        </svg>
+                    </button>
+                    <button onclick="exportPlugin('${plugin.id}')" class="p-2 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded" title="导出">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                    </button>
+                    <button onclick="deletePlugin('${plugin.id}')" class="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded" title="删除">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 显示插件创建/编辑模态框
+async function showPluginModal(pluginId = null) {
+    const plugin = pluginId ? allPlugins.find(p => p.id === pluginId) : null;
+
+    const modalHtml = `
+        <div id="pluginModal" class="plugin-modal-overlay">
+            <div class="plugin-modal-content">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">
+                        ${plugin ? '编辑插件' : '创建插件'}
+                    </h2>
+                    <button onclick="closePluginModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <form id="pluginForm" onsubmit="savePlugin(event, '${pluginId || ''}')">
+                    <div class="plugin-form-group">
+                        <label class="plugin-form-label">插件名称 *</label>
+                        <input type="text" name="name" class="plugin-form-input" value="${plugin?.name || ''}" required>
+                    </div>
+
+                    <div class="plugin-form-group">
+                        <label class="plugin-form-label">显示名称 *</label>
+                        <input type="text" name="display_name" class="plugin-form-input" value="${plugin?.display_name || ''}" required>
+                    </div>
+
+                    <div class="plugin-form-group">
+                        <label class="plugin-form-label">角色标识符 *</label>
+                        <input type="text" name="role" class="plugin-form-input" value="${plugin?.role || ''}" pattern="[a-z0-9_]+" title="只能包含小写字母、数字和下划线" required>
+                        <p class="text-xs text-gray-500 mt-1">只能包含小写字母、数字和下划线</p>
+                    </div>
+
+                    <div class="plugin-form-group">
+                        <label class="plugin-form-label">描述 *</label>
+                        <textarea name="description" class="plugin-form-textarea" required>${plugin?.description || ''}</textarea>
+                    </div>
+
+                    <div class="plugin-form-group">
+                        <label class="plugin-form-label">系统提示词 *</label>
+                        <textarea name="system_prompt" class="plugin-form-textarea" style="min-height: 200px;" required>${plugin?.system_prompt || ''}</textarea>
+                    </div>
+
+                    <div class="plugin-form-group">
+                        <label class="plugin-form-label">能力列表 *（每行一个能力）</label>
+                        <textarea name="capabilities" class="plugin-form-textarea" required>${plugin?.capabilities?.join('\n') || ''}</textarea>
+                    </div>
+
+                    <div class="plugin-form-group">
+                        <label class="plugin-form-label">标签（逗号分隔）</label>
+                        <input type="text" name="tags" class="plugin-form-input" value="${plugin?.tags?.join(', ') || ''}">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="plugin-form-group">
+                            <label class="plugin-form-label">温度</label>
+                            <input type="number" name="temperature" class="plugin-form-input" value="${plugin?.temperature || 0.7}" min="0" max="2" step="0.1">
+                        </div>
+
+                        <div class="plugin-form-group">
+                            <label class="plugin-form-label">最大 Token 数</label>
+                            <input type="number" name="max_tokens" class="plugin-form-input" value="${plugin?.max_tokens || 2000}" min="100" max="8000">
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2 mt-6">
+                        <button type="button" onclick="closePluginModal()" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                            取消
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded">
+                            ${plugin ? '更新' : '创建'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    pluginModalElement = document.getElementById('pluginModal');
+}
+
+// 关闭插件模态框
+function closePluginModal() {
+    if (pluginModalElement) {
+        pluginModalElement.remove();
+        pluginModalElement = null;
+    }
+}
+
+// 保存插件
+async function savePlugin(event, pluginId) {
+    event.preventDefault();
+
+    const form = event.target;
+    const formData = new FormData(form);
+
+    const pluginData = {
+        name: formData.get('name'),
+        display_name: formData.get('display_name'),
+        role: formData.get('role'),
+        description: formData.get('description'),
+        system_prompt: formData.get('system_prompt'),
+        capabilities: formData.get('capabilities').split('\n').filter(c => c.trim()),
+        tags: formData.get('tags').split(',').map(t => t.trim()).filter(t => t),
+        temperature: parseFloat(formData.get('temperature')),
+        max_tokens: parseInt(formData.get('max_tokens'))
+    };
+
+    try {
+        const token = localStorage.getItem('token');
+        const url = pluginId ? `/api/plugins/${pluginId}` : '/api/plugins';
+        const method = pluginId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(pluginData)
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || '保存失败');
+        }
+
+        showToast('success', '成功', pluginId ? '插件更新成功' : '插件创建成功');
+        closePluginModal();
+        await loadAndRenderPlugins();
+    } catch (error) {
+        console.error('保存插件失败:', error);
+        showToast('error', '错误', error.message);
+    }
+}
+
+// 编辑插件
+async function editPlugin(pluginId) {
+    await showPluginModal(pluginId);
+}
+
+// 切换插件启用状态
+async function togglePlugin(pluginId, enable) {
+    try {
+        const token = localStorage.getItem('token');
+        const url = `/api/plugins/${pluginId}/${enable ? 'enable' : 'disable'}`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('操作失败');
+        }
+
+        showToast('success', '成功', enable ? '插件已启用' : '插件已禁用');
+        await loadAndRenderPlugins();
+    } catch (error) {
+        console.error('切换插件状态失败:', error);
+        showToast('error', '错误', '操作失败');
+    }
+}
+
+// 删除插件
+async function deletePlugin(pluginId) {
+    if (!confirm('确定要删除这个插件吗？')) {
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/plugins/${pluginId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('删除失败');
+        }
+
+        showToast('success', '成功', '插件已删除');
+        await loadAndRenderPlugins();
+    } catch (error) {
+        console.error('删除插件失败:', error);
+        showToast('error', '错误', '删除失败');
+    }
+}
+
+// 导出插件
+async function exportPlugin(pluginId) {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/plugins/${pluginId}/export`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('导出失败');
+        }
+
+        const data = await response.json();
+        const jsonStr = JSON.stringify(data.plugin, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `plugin_${data.plugin.role}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast('success', '成功', '插件已导出');
+    } catch (error) {
+        console.error('导出插件失败:', error);
+        showToast('error', '错误', '导出失败');
+    }
+}
+
+// 导入插件
+async function importPlugin() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const pluginData = JSON.parse(text);
+
+            const token = localStorage.getItem('token');
+            const response = await fetch('/api/plugins/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(pluginData)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || '导入失败');
+            }
+
+            showToast('success', '成功', '插件已导入');
+            await loadAndRenderPlugins();
+        } catch (error) {
+            console.error('导入插件失败:', error);
+            showToast('error', '错误', error.message);
+        }
+    };
+
+    input.click();
+}
+
+// 加载并渲染插件
+async function loadAndRenderPlugins() {
+    const plugins = await loadPlugins();
+    renderPlugins(plugins);
+}
+
+// 搜索插件
+function searchPlugins(keyword) {
+    if (!keyword) {
+        renderPlugins(allPlugins);
+        return;
+    }
+
+    const filtered = allPlugins.filter(p =>
+        p.name.toLowerCase().includes(keyword.toLowerCase()) ||
+        p.description.toLowerCase().includes(keyword.toLowerCase()) ||
+        p.role.toLowerCase().includes(keyword.toLowerCase()) ||
+        p.tags.some(tag => tag.toLowerCase().includes(keyword.toLowerCase()))
+    );
+
+    renderPlugins(filtered);
+}
+
+// 打开插件管理模态框
+function openPluginManagementModal() {
+    const modal = document.getElementById('pluginManagementModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        loadAndRenderPlugins();
+    }
+}
+
+// 关闭插件管理模态框
+function closePluginManagementModal() {
+    const modal = document.getElementById('pluginManagementModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
 });

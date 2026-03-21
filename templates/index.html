@@ -583,6 +583,53 @@
         </div>
     </div>
 
+    <!-- Plugin Management Modal -->
+    <div id="pluginManagementModal" class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
+            <div class="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <span class="text-[24px]">🧩</span>
+                        插件管理
+                    </h2>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">管理自定义智能体插件</p>
+                </div>
+                <button onclick="closePluginManagementModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+                <div class="flex-1 max-w-md">
+                    <input type="text" id="pluginSearchInput" placeholder="搜索插件..." oninput="searchPlugins(this.value)"
+                        class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="importPlugin()" class="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors font-medium">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        导入
+                    </button>
+                    <button onclick="showPluginModal()" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary to-secondary text-white rounded-lg hover:shadow-lg transition-all font-bold shadow-md">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        创建插件
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                <div id="pluginsContainer" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <!-- Plugin cards will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

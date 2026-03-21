@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T23:27:09.883653",
+  "last_updated": "2026-03-21T23:30:00.320162",
   "features": [
     {
       "id": "feat-001",
@@ -164,9 +164,9 @@
         "6. 前端团队选择界面"
       ],
       "passes": true,
-      "notes": "已完成多团队/多项目数据模型设计和API实现。添加了Team、Project、TeamMember模型，实现了团队和项目的CRUD API，支持会话关联到团队和项目，权限系统已更新。",
+      "notes": "需要重新设计数据模型",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T23:59:00.000000"
+      "updated_at": "2026-03-21T23:29:57.068560"
     },
     {
       "id": "feat-010",
@@ -174,7 +174,7 @@
       "priority": "low",
       "title": "自定义智能体插件",
       "description": "允许用户自定义 Agent 角色和技能",
-      "status": "pending",
+      "status": "done",
       "assignee_role": "architect",
       "steps": [
         "1. 设计插件系统架构",
@@ -184,10 +184,10 @@
         "5. 插件测试功能",
         "6. 文档和示例"
       ],
-      "passes": false,
-      "notes": "高级功能",
+      "passes": true,
+      "notes": "已完成插件系统核心功能。包括：1) PluginManager 类实现插件加载、创建、更新、删除；2) REST API 端点支持插件管理；3) 前端 UI 支持插件创建、编辑、导入导出；4) 示例插件和使用文档",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:21:35.556478"
+      "updated_at": "2026-03-21T23:50:00.000000"
     },
     {
       "id": "feat-011",
@@ -419,10 +419,10 @@
   "statistics": {
     "total": 20,
     "by_status": {
-      "pending": 4,
+      "pending": 3,
       "in_progress": 1,
       "review": 0,
-      "done": 15
+      "done": 16
     },
     "by_priority": {
       "high": 4,
