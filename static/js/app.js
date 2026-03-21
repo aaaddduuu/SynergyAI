@@ -2094,4 +2094,127 @@ function closePluginManagementModal() {
         modal.classList.add('hidden');
     }
 }
+
+// ==================== Mobile Support Functions ====================
+
+// 切换移动端侧边栏
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('leftSidebar');
+    const overlay = document.getElementById('mobileSidebarOverlay');
+
+    if (sidebar && overlay) {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('open');
+    }
+}
+
+// 关闭移动端侧边栏
+function closeMobileSidebar() {
+    const sidebar = document.getElementById('leftSidebar');
+    const overlay = document.getElementById('mobileSidebarOverlay');
+
+    if (sidebar && overlay) {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('open');
+    }
+}
+
+// 检测设备是否为触摸设备
+function isTouchDevice() {
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+}
+
+// 优化触摸事件 - 防止双击缩放
+function initTouchOptimization() {
+    if (!isTouchDevice()) return;
+
+    // 为所有按钮添加触摸优化
+    const buttons = document.querySelectorAll('button, .agent-item, .mobile-touch-btn');
+    buttons.forEach(btn => {
+        btn.addEventListener('touchstart', function() {
+            this.classList.add('touching');
+        }, { passive: true });
+
+        btn.addEventListener('touchend', function() {
+            this.classList.remove('touching');
+        }, { passive: true });
+
+        btn.addEventListener('touchcancel', function() {
+            this.classList.remove('touching');
+        }, { passive: true });
+    });
+
+    // 防止双击缩放和长按选择
+    document.addEventListener('touchstart', function(event) {
+        if (event.touches.length > 1) {
+            event.preventDefault();
+        }
+    }, { passive: false });
+
+    // 优化表单输入
+    const inputs = document.querySelectorAll('input, textarea');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            // 输入框获得焦点时关闭侧边栏
+            closeMobileSidebar();
+        });
+    });
+}
+
+// 监听窗口大小变化
+function handleResize() {
+    const width = window.innerWidth;
+
+    // 当窗口宽度大于1024px时，确保侧边栏关闭
+    if (width >= 1024) {
+        closeMobileSidebar();
+    }
+}
+
+// 初始化移动端支持
+function initMobileSupport() {
+    // 添加窗口大小变化监听
+    window.addEventListener('resize', handleResize);
+
+    // 初始化触摸优化
+    initTouchOptimization();
+
+    // 点击模态框外部关闭模态框（移动端）
+    const modals = document.querySelectorAll('[id$="Modal"]');
+    modals.forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this && isTouchDevice()) {
+                this.classList.add('hidden');
+            }
+        });
+    });
+
+    // 优化滚动性能
+    if (isTouchDevice()) {
+        const scrollContainers = document.querySelectorAll('.mobile-scroll');
+        scrollContainers.forEach(container => {
+            container.style.webkitOverflowScrolling = 'touch';
+        });
+    }
+
+    console.log('Mobile support initialized');
+}
+
+// 页面加载完成后初始化移动端支持
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobileSupport);
+} else {
+    initMobileSupport();
+}
+
+// 添加触摸设备CSS样式
+const touchStyles = document.createElement('style');
+touchStyles.textContent = `
+    .touching {
+        opacity: 0.7 !important;
+        transform: scale(0.98) !important;
+    }
+`;
+document.head.appendChild(touchStyles);
+
 });

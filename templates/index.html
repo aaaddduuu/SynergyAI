@@ -2,7 +2,17 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#667aea">
+
+    <!-- 性能优化：资源预连接和预加载 -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
     <!-- 性能优化：DNS 预解析 -->
     <link rel="dns-prefetch" href="//cdn.tailwindcss.com">
@@ -38,13 +48,23 @@
     <title>AI 协作团队</title>
 </head>
 <body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
+    <!-- Mobile Sidebar Overlay -->
+    <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
     <div class="flex flex-col h-screen overflow-hidden">
         <!-- Header -->
-        <header class="h-[60px] shrink-0 bg-gradient-to-r from-primary to-secondary px-6 flex items-center justify-between shadow-md z-10">
-            <div class="flex items-center gap-4">
-                <h1 class="text-white text-xl font-bold tracking-tight">🤖 AI 协作团队</h1>
-                <div class="h-6 w-[1px] bg-white/20 mx-2"></div>
-                <div class="flex items-center gap-3">
+        <header class="h-[60px] shrink-0 bg-gradient-to-r from-primary to-secondary px-4 md:px-6 flex items-center justify-between shadow-md z-10 mobile-header">
+            <div class="flex items-center gap-2 md:gap-4">
+                <!-- Mobile Menu Button -->
+                <button id="mobileMenuBtn" onclick="toggleMobileSidebar()" class="lg:hidden mobile-touch-btn text-white p-2 -ml-2 rounded-lg hover:bg-white/10 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+
+                <h1 class="text-white text-base md:text-xl font-bold tracking-tight">🤖 AI 协作团队</h1>
+                <div class="hidden sm:block h-6 w-[1px] bg-white/20 mx-2"></div>
+                <div class="hidden sm:flex items-center gap-3">
                     <span class="text-white/90 text-sm font-medium">对话轮数: <span id="turnCount">0</span></span>
                     <span id="sessionStatus" class="bg-emerald-500/20 text-emerald-100 text-xs px-2 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -52,24 +72,24 @@
                     </span>
                 </div>
             </div>
-            <div class="flex items-center gap-3">
-                <div id="wsStatus" class="flex items-center gap-1.5 text-white/70 text-xs">
+            <div class="flex items-center gap-2 md:gap-3">
+                <div id="wsStatus" class="hidden sm:flex items-center gap-1.5 text-white/70 text-xs">
                     <span class="w-2 h-2 rounded-full bg-red-500"></span>
                     <span>离线</span>
                 </div>
-                <button onclick="showConfigModal()" class="flex items-center gap-2 px-4 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm font-medium border border-white/20">
+                <button onclick="showConfigModal()" class="hidden sm:flex items-center gap-2 px-3 md:px-4 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm font-medium border border-white/20 mobile-touch-btn">
                     <span class="text-[18px]">⚙️</span>
-                    配置
+                    <span class="hidden md:inline">配置</span>
                 </button>
-                <button onclick="createSession()" class="flex items-center gap-2 px-4 py-1.5 bg-white text-primary hover:bg-white/90 rounded-lg transition-colors text-sm font-bold shadow-sm">
+                <button onclick="createSession()" class="flex items-center gap-1 md:gap-2 px-3 md:px-4 py-1.5 bg-white text-primary hover:bg-white/90 rounded-lg transition-colors text-sm font-bold shadow-sm mobile-touch-btn">
                     <span class="text-[18px]">➕</span>
-                    新建项目
+                    <span class="hidden md:inline">新建项目</span>
                 </button>
-                <div class="ml-2 relative">
-                    <button onclick="toggleUserMenu()" id="userAvatar" class="w-8 h-8 rounded-full bg-white/20 border border-white/30 flex items-center justify-center text-white overflow-hidden hover:bg-white/30 transition-colors cursor-pointer">
+                <div class="ml-1 md:ml-2 relative">
+                    <button onclick="toggleUserMenu()" id="userAvatar" class="w-8 h-8 rounded-full bg-white/20 border border-white/30 flex items-center justify-center text-white overflow-hidden hover:bg-white/30 transition-colors cursor-pointer mobile-touch-btn">
                         <span>👤</span>
                     </button>
-                    
+
                     <!-- User Menu Dropdown -->
                     <div id="userMenu" class="hidden absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
                         <!-- Content will be dynamically updated by updateUserUI() -->
@@ -80,9 +100,9 @@
 
         <!-- Main Layout -->
         <main class="flex flex-1 overflow-hidden">
-            <!-- Left Sidebar (280px) -->
-            <aside class="w-[280px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
-                <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+            <!-- Left Sidebar (280px) - Mobile: Hidden by default, shown with overlay -->
+            <aside id="leftSidebar" class="mobile-sidebar lg:static lg:transform-none w-[280px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
+                <div class="flex-1 overflow-y-auto custom-scrollbar mobile-scroll p-4 space-y-6">
                     <!-- Team Section -->
                     <section>
                         <div class="flex items-center justify-between mb-4">
@@ -92,27 +112,27 @@
                             </h2>
                         </div>
                         <div class="grid grid-cols-1 gap-1">
-                            <div onclick="selectAgent('hr')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                            <div onclick="selectAgent('hr')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors mobile-touch-feedback">
                                 <div class="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xs border border-rose-200">HR</div>
                                 <span class="text-sm font-medium">招聘专家</span>
                             </div>
-                            <div onclick="selectAgent('pm')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                            <div onclick="selectAgent('pm')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors mobile-touch-feedback">
                                 <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs border border-blue-200">PM</div>
                                 <span class="text-sm font-medium">产品经理</span>
                             </div>
-                            <div onclick="selectAgent('ba')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                            <div onclick="selectAgent('ba')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors mobile-touch-feedback">
                                 <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-xs border border-amber-200">BA</div>
                                 <span class="text-sm font-medium">商业分析</span>
                             </div>
-                            <div onclick="selectAgent('dev')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                            <div onclick="selectAgent('dev')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors mobile-touch-feedback">
                                 <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs border border-indigo-200">Dev</div>
                                 <span class="text-sm font-medium">核心开发</span>
                             </div>
-                            <div onclick="selectAgent('qa')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                            <div onclick="selectAgent('qa')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors mobile-touch-feedback">
                                 <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs border border-emerald-200">QA</div>
                                 <span class="text-sm font-medium">质量保证</span>
                             </div>
-                            <div onclick="selectAgent('architect')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
+                            <div onclick="selectAgent('architect')" class="agent-item flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors mobile-touch-feedback">
                                 <div class="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs border border-purple-200">Arc</div>
                                 <span class="text-sm font-medium">系统架构</span>
                             </div>
@@ -154,7 +174,7 @@
                                 <div class="skeleton h-3 w-20 rounded"></div>
                             </div>
                         </div>
-                        <button onclick="showAddTaskModal()" class="w-full mt-4 flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-primary hover:border-primary transition-all text-sm font-medium">
+                        <button onclick="showAddTaskModal()" class="w-full mt-4 flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-primary hover:border-primary transition-all text-sm font-medium mobile-touch-btn">
                             <span class="text-[18px]">➕</span>
                             添加任务
                         </button>
@@ -166,10 +186,10 @@
                             <span class="text-[18px]">🕐</span>
                             历史会话
                         </h2>
-                        <div id="sessionList" class="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                        <div id="sessionList" class="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar mobile-hide-scrollbar">
                             <div class="text-center py-4 text-slate-400 text-xs">暂无历史会话</div>
                         </div>
-                        <button onclick="loadSessionList()" class="w-full mt-2 flex items-center justify-center gap-1 p-2 text-slate-400 hover:text-primary transition-colors text-xs">
+                        <button onclick="loadSessionList()" class="w-full mt-2 flex items-center justify-center gap-1 p-2 text-slate-400 hover:text-primary transition-colors text-xs mobile-touch-btn">
                             <span class="text-[14px]">🔄</span>
                             刷新
                         </button>
@@ -180,22 +200,22 @@
             <!-- Center Chat Area -->
             <section class="flex-1 flex flex-col bg-slate-50 dark:bg-slate-950">
                 <!-- Messages container -->
-                <div id="messages" class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                <div id="messages" class="flex-1 overflow-y-auto custom-scrollbar mobile-scroll p-4 md:p-6 space-y-6">
                     <!-- Empty State -->
-                    <div id="emptyState" class="flex-1 flex flex-col items-center justify-center p-8">
+                    <div id="emptyState" class="flex-1 flex flex-col items-center justify-center p-4 md:p-8">
                         <div class="max-md w-full flex flex-col items-center text-center">
-                            <div class="relative mb-8">
+                            <div class="relative mb-6 md:mb-8">
                                 <div class="absolute -inset-4 bg-primary/10 rounded-full blur-2xl"></div>
-                                <div class="relative bg-white dark:bg-slate-900 size-24 rounded-3xl shadow-xl flex items-center justify-center border border-slate-100 dark:border-slate-800">
-                                    <span class="text-primary text-5xl">💬</span>
+                                <div class="relative bg-white dark:bg-slate-900 size-20 md:size-24 rounded-3xl shadow-xl flex items-center justify-center border border-slate-100 dark:border-slate-800">
+                                    <span class="text-primary text-4xl md:text-5xl">💬</span>
                                 </div>
                             </div>
-                            <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-3 tracking-tight">开始与AI团队交流</h1>
-                            <p class="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
+                            <h1 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100 mb-3 tracking-tight">开始与AI团队交流</h1>
+                            <p class="text-sm md:text-base text-slate-500 dark:text-slate-400 mb-6 md:mb-8 leading-relaxed px-4">
                                 欢迎来到您的协作空间。连接您的 AI 代理，开始在您的下一个伟大创意上进行协作。
                             </p>
-                            <div class="flex flex-col sm:flex-row gap-3">
-                                <button onclick="createSession()" class="px-8 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/25 hover:scale-[1.02] active:scale-[0.98] transition-all">
+                            <div class="flex flex-col sm:flex-row gap-3 w-full px-4">
+                                <button onclick="createSession()" class="w-full sm:w-auto px-6 md:px-8 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/25 hover:scale-[1.02] active:scale-[0.98] transition-all mobile-touch-btn">
                                     创建新项目
                                 </button>
                             </div>
@@ -248,19 +268,19 @@
                 </div>
 
                 <!-- Bottom Input Area -->
-                <div class="h-[80px] bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 flex items-center gap-4">
-                    <button class="text-slate-400 hover:text-primary transition-colors">
+                <div class="h-auto min-h-[70px] md:h-[80px] bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-4 md:px-6 flex items-center gap-2 md:gap-4 mobile-input-area mobile-safe-bottom">
+                    <button class="text-slate-400 hover:text-primary transition-colors mobile-touch-btn hidden md:block">
                         <span>📎</span>
                     </button>
                     <div class="flex-1 relative">
-                        <input id="messageInput" class="w-full h-11 bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 text-sm focus:ring-2 focus:ring-primary/50 transition-all" placeholder="输入消息，与团队进行协作..." type="text" onkeypress="handleKeyPress(event)" oninput="handleTyping()"/>
+                        <input id="messageInput" class="w-full h-11 bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 text-sm mobile-input focus:ring-2 focus:ring-primary/50 transition-all" placeholder="输入消息，与团队进行协作..." type="text" onkeypress="handleKeyPress(event)" oninput="handleTyping()"/>
                         <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                             <span class="text-slate-400 text-[20px] cursor-pointer hover:text-primary">😊</span>
                         </div>
                     </div>
-                    <button id="sendBtn" onclick="sendMessage()" class="bg-primary hover:bg-primary/90 text-white px-6 h-11 rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button id="sendBtn" onclick="sendMessage()" class="bg-primary hover:bg-primary/90 text-white px-4 md:px-6 h-11 rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-1 md:gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mobile-touch-btn">
                         <span id="sendIcon" class="text-[20px]">➤</span>
-                        <span id="sendText">发送</span>
+                        <span id="sendText" class="hidden md:inline">发送</span>
                     </button>
                 </div>
             </section>

@@ -182,3 +182,258 @@
     background: #7f1d1d;
     color: #fee2e2;
 }
+
+/* 移动端优化样式 */
+@media (max-width: 768px) {
+    /* 移动端侧边栏优化 */
+    .mobile-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 280px;
+        z-index: 100;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .mobile-sidebar.open {
+        transform: translateX(0);
+    }
+
+    .mobile-sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 99;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+    }
+
+    .mobile-sidebar-overlay.open {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* 移动端按钮触摸优化 */
+    .mobile-touch-btn {
+        min-height: 44px;
+        min-width: 44px;
+        touch-action: manipulation;
+    }
+
+    /* 移动端输入框优化 */
+    .mobile-input {
+        font-size: 16px !important;
+        /* 防止iOS自动缩放 */
+    }
+
+    /* 移动端滚动容器优化 */
+    .mobile-scroll {
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+    }
+
+    /* 移动端模态框优化 */
+    .mobile-modal {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-height: 90vh;
+        border-radius: 20px 20px 0 0;
+        transform: translateY(100%);
+        transition: transform 0.3s ease-out;
+    }
+
+    .mobile-modal.open {
+        transform: translateY(0);
+    }
+
+    /* 移动端消息容器优化 */
+    .mobile-message-container {
+        padding: 12px !important;
+    }
+
+    /* 移动端头部优化 */
+    .mobile-header {
+        padding: 0 12px !important;
+    }
+
+    /* 移动端输入区域优化 */
+    .mobile-input-area {
+        padding: 12px !important;
+        gap: 8px !important;
+    }
+
+    /* 移动端网格布局优化 */
+    .mobile-grid-1 {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* 移动端隐藏元素 */
+    .mobile-hide {
+        display: none !important;
+    }
+
+    /* 移动端显示元素 */
+    .mobile-show {
+        display: flex !important;
+    }
+
+    /* 移动端全宽 */
+    .mobile-full-width {
+        width: 100% !important;
+    }
+
+    /* 移动端文本大小优化 */
+    .mobile-text-sm {
+        font-size: 0.875rem;
+    }
+
+    /* 移动端间距优化 */
+    .mobile-spacing-compact {
+        gap: 8px !important;
+    }
+
+    /* 移动端触摸反馈 */
+    .mobile-touch-feedback:active {
+        opacity: 0.7;
+        transform: scale(0.98);
+    }
+
+    /* 移动端长按防止 */
+    .mobile-no-select {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    /* 移动端安全区域适配 */
+    .mobile-safe-top {
+        padding-top: env(safe-area-inset-top);
+    }
+
+    .mobile-safe-bottom {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* 移动端滚动条隐藏 */
+    .mobile-hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .mobile-hide-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+/* 触摸设备优化 */
+@media (hover: none) and (pointer: coarse) {
+    /* 移除hover效果，避免触摸后的残留状态 */
+    .touch-hover:hover {
+        transform: none;
+    }
+
+    /* 增大触摸目标 */
+    .touch-target {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* 平板设备优化 */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .tablet-sidebar {
+        width: 220px;
+    }
+
+    .tablet-content {
+        max-width: 100%;
+    }
+}
+
+/* 移动端性能优化 */
+/* GPU 加速 */
+.mobile-gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+/* 减少重绘 */
+.mobile-reduced-motion {
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+/* 图片优化 */
+img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+}
+
+/* 字体加载优化 */
+@font-face {
+    font-display: swap;
+}
+
+/* 内容可见性优化 */
+.mobile-content-visibility {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 500px;
+}
+
+/* 防止文本溢出 */
+.mobile-text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 移动端懒加载 */
+.mobile-lazy-load {
+    loading: lazy;
+}
+
+/* 移动端动画性能优化 */
+@media (max-width: 768px) {
+    /* 减少动画和过渡效果，提升性能 */
+    * {
+        transition-duration: 0.2s !important;
+        animation-duration: 0.3s !important;
+    }
+
+    /* 禁用某些复杂的阴影效果 */
+    .no-mobile-shadow {
+        box-shadow: none !important;
+    }
+
+    /* GPU 加速关键元素 */
+    .mobile-sidebar,
+    .mobile-modal,
+    #messages {
+        transform: translateZ(0);
+        will-change: transform;
+    }
+}
+
+/* 移动端网络优化 */
+@media (max-width: 768px) {
+    /* 减少请求的数据量 */
+    .mobile-reduced-data {
+        font-size: 14px;
+    }
+
+    /* 优化资源加载 */
+    .mobile-async-load {
+        content-visibility: auto;
+    }
+}
