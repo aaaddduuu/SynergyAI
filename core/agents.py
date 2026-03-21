@@ -487,7 +487,7 @@ suite.add_test(TestCase(
 }
 
 
-def get_agent_prompt(role: AgentRole, agent_name: str = None) -> str:
+def get_agent_prompt(role: AgentRole, agent_name: Optional[str] = None) -> str:
     """Get system prompt for an agent role"""
     base_prompt = AGENT_SYSTEM_PROMPTS.get(role, "")
     

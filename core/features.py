@@ -91,7 +91,7 @@ class Feature:
 class FeatureList:
     """功能清单管理"""
 
-    def __init__(self, project_dir: str = None):
+    def __init__(self, project_dir: Optional[str] = None):
         """
         初始化功能清单
 
@@ -99,7 +99,7 @@ class FeatureList:
             project_dir: 项目根目录
         """
         if project_dir is None:
-            project_dir = Path.cwd()
+            project_dir = str(Path.cwd())
         self.project_dir = Path(project_dir)
         self.feature_file = self.project_dir / "feature_list.json"
         self.features: Dict[str, Feature] = {}
@@ -152,7 +152,7 @@ class FeatureList:
 
         by_status = {"pending": 0, "in_progress": 0, "review": 0, "done": 0}
         by_priority = {"high": 0, "medium": 0, "low": 0}
-        by_category = {}
+        by_category: Dict[str, int] = {}
 
         for feature in self.features.values():
             # 按状态统计
@@ -171,7 +171,7 @@ class FeatureList:
             "by_category": by_category
         }
 
-    def get_next_feature(self, assignee_role: str = None) -> Optional[Feature]:
+    def get_next_feature(self, assignee_role: Optional[str] = None) -> Optional[Feature]:
         """
         获取下一个待处理的功能
 

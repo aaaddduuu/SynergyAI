@@ -46,7 +46,7 @@ class TestSuite:
     """测试套件"""
     name: str
     description: str
-    test_cases: List[TestCase] = None
+    test_cases: Optional[List[TestCase]] = None
 
     def __post_init__(self):
         if self.test_cases is None:
@@ -214,7 +214,7 @@ class TaskValidator:
         return suite
 
 
-def create_test_report(test_suite: TestSuite, task_info: dict = None) -> str:
+def create_test_report(test_suite: TestSuite, task_info: Optional[dict] = None) -> str:
     """
     生成增强的测试报告
 
@@ -391,14 +391,24 @@ def quick_validate(value: Any, validation_type: str, **kwargs) -> tuple[bool, st
             kwargs.get("field_name", "值")
         )
     elif validation_type == "format":
-        return validator.validate_format(value, kwargs.get("pattern"), kwargs.get("field_name", "值"))
+        pattern = kwargs.get("pattern")
+        if pattern is None:
+            return False, "缺少 pattern 参数"
+        return validator.validate_format(value, pattern, kwargs.get("field_name", "值"))
     elif validation_type == "contains":
-        return validator.validate_contains(value, kwargs.get("keyword"), kwargs.get("field_name", "文本"))
+        keyword = kwargs.get("keyword")
+        if keyword is None:
+            return False, "缺少 keyword 参数"
+        return validator.validate_contains(value, keyword, kwargs.get("field_name", "文本"))
     elif validation_type == "range":
+        min_val = kwargs.get("min_val")
+        max_val = kwargs.get("max_val")
+        if min_val is None or max_val is None:
+            return False, "缺少 min_val 或 max_val 参数"
         return validator.validate_in_range(
             value,
-            kwargs.get("min_val"),
-            kwargs.get("max_val"),
+            min_val,
+            max_val,
             kwargs.get("field_name", "值")
         )
     else:

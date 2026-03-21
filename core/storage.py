@@ -115,7 +115,7 @@ class Agent:
 
 
 class Session:
-    def __init__(self, id: str = None):
+    def __init__(self, id: Optional[str] = None):
         self.id = id or str(uuid.uuid4())
         self.messages: List[Message] = []
         self.agents: Dict[str, Agent] = {}
@@ -150,7 +150,7 @@ class Session:
 
         return False, ""
 
-    def update_progress_log(self, agent_role: str, work_done: str, additional_info: dict = None):
+    def update_progress_log(self, agent_role: str, work_done: str, additional_info: Optional[dict] = None):
         """
         记录每次 Agent 会话的进展到进度日志
 
