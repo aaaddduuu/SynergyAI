@@ -1,0 +1,15 @@
+[coverage:run]
+source = core
+omit =
+    */tests/*
+    */__pycache__/*
+    */site-packages/*
+    test_*.py
+
+[coverage:report]
+precision = 2
+show_missing = True
+skip_covered = False
+
+[coverage:html]
+directory = htmlcov

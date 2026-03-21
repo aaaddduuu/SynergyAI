@@ -86,26 +86,6 @@
       "updated_at": "2026-03-21T13:30:00.000000"
     },
     {
-      "id": "feat-005",
-      "category": "testing",
-      "priority": "medium",
-      "title": "单元测试覆盖",
-      "description": "为核心模块编写单元测试",
-      "status": "pending",
-      "assignee_role": "qa",
-      "steps": [
-        "1. 为 core/agents.py 编写测试",
-        "2. 为 core/orchestrator.py 编写测试",
-        "3. 为 core/storage.py 编写测试",
-        "4. 为 core/model_config.py 编写测试",
-        "5. 确保测试覆盖率达到 60% 以上"
-      ],
-      "passes": false,
-      "notes": "使用 pytest 框架",
-      "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:21:35.556478"
-    },
-    {
       "id": "feat-006",
       "category": "refactoring",
       "priority": "low",
@@ -414,6 +394,26 @@
       "notes": "",
       "created_at": "2026-03-21T01:21:35.556478",
       "updated_at": "2026-03-21T01:21:35.556478"
+    },
+    {
+      "id": "feat-005",
+      "category": "testing",
+      "priority": "medium",
+      "title": "单元测试覆盖",
+      "description": "为核心模块编写单元测试",
+      "status": "done",
+      "assignee_role": "qa",
+      "steps": [
+        "1. 为 core/agents.py 编写测试",
+        "2. 为 core/orchestrator.py 编写测试",
+        "3. 为 core/storage.py 编写测试",
+        "4. 为 core/model_config.py 编写测试",
+        "5. 确保测试覆盖率达到 60% 以上"
+      ],
+      "passes": true,
+      "notes": "已完成96个单元测试，核心模块覆盖率超过73%",
+      "created_at": "2026-03-21T01:21:35.556478",
+      "updated_at": "2026-03-21T13:45:00.000000"
     }
   ],
   "statistics": {
