@@ -702,3 +702,12 @@ class Storage:
             conn.commit()
 
             return cursor.rowcount > 0
+
+    def close(self):
+        """关闭数据库连接"""
+        if hasattr(self._local, 'conn') and self._local.conn is not None:
+            try:
+                self._local.conn.close()
+                self._local.conn = None
+            except Exception:
+                pass

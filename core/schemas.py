@@ -35,7 +35,7 @@ class UserRole(str, Enum):
 class UserRegisterRequest(BaseModel):
     """用户注册请求"""
     username: str = Field(..., min_length=3, max_length=50, description="用户名")
-    email: str = Field(..., regex=r'^[\w\.-]+@[\w\.-]+\.\w+$', description="邮箱")
+    email: str = Field(..., pattern=r'^[\w\.\+\-]+@[\w\.-]+\.\w+$', description="邮箱")
     password: str = Field(..., min_length=6, max_length=100, description="密码")
 
     @validator('username')
@@ -115,7 +115,7 @@ class TaskCreateRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200, description="任务标题")
     description: Optional[str] = Field(None, max_length=5000, description="任务描述")
     assignee: Optional[str] = Field(None, description="分配给的角色")
-    priority: Optional[str] = Field("medium", regex=r'^(low|medium|high)$', description="优先级")
+    priority: Optional[str] = Field("medium", pattern=r'^(low|medium|high)$', description="优先级")
 
     @validator('title')
     def validate_title(cls, v):
@@ -137,9 +137,9 @@ class TaskUpdateRequest(BaseModel):
     """更新任务请求"""
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=5000)
-    status: Optional[str] = Field(None, regex=r'^(pending|in_progress|completed|failed)$')
+    status: Optional[str] = Field(None, pattern=r'^(pending|in_progress|completed|failed)$')
     assignee: Optional[str] = None
-    priority: Optional[str] = Field(None, regex=r'^(low|medium|high)$')
+    priority: Optional[str] = Field(None, pattern=r'^(low|medium|high)$')
 
     @validator('title')
     def validate_title(cls, v):
@@ -231,14 +231,14 @@ class PluginUpdateRequest(BaseModel):
 
 class FeatureUpdateStatusRequest(BaseModel):
     """更新功能状态请求"""
-    status: str = Field(..., regex=r'^(pending|in_progress|review|done)$')
+    status: str = Field(..., pattern=r'^(pending|in_progress|review|done)$')
 
 
 class FeatureCreateRequest(BaseModel):
     """创建功能请求"""
     id: str = Field(..., min_length=1, max_length=50, description="功能ID")
     category: str = Field(..., description="功能类别")
-    priority: str = Field(..., regex=r'^(low|medium|high)$', description="优先级")
+    priority: str = Field(..., pattern=r'^(low|medium|high)$', description="优先级")
     title: str = Field(..., min_length=1, max_length=100, description="功能标题")
     description: str = Field(..., min_length=1, max_length=500, description="功能描述")
     assignee_role: str = Field(..., description="负责人角色")

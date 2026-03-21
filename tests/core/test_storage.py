@@ -386,6 +386,20 @@ class TestStorage:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "test.db")
             yield db_path
+            # 确保所有连接都已关闭
+            import gc
+            gc.collect()
+
+    @pytest.fixture
+    def storage(self, temp_db):
+        """创建 storage 实例并确保关闭"""
+        stor = Storage(db_path=temp_db)
+        yield stor
+        # 测试结束后关闭连接
+        stor.close()
+        # 强制垃圾回收
+        import gc
+        gc.collect()
 
     def test_storage_initialization(self, temp_db):
         """Test storage initializes and creates DB"""
@@ -393,9 +407,8 @@ class TestStorage:
         assert storage.db_path == temp_db
         assert os.path.exists(temp_db)
 
-    def test_save_and_load_session(self, temp_db):
+    def test_save_and_load_session(self, storage):
         """Test saving and loading a session"""
-        storage = Storage(db_path=temp_db)
 
         # Create and save session
         session = Session(id="session1")
@@ -426,15 +439,13 @@ class TestStorage:
         assert loaded.messages[0].content == "Test"
         assert loaded.tasks["task1"].title == "Test Task"
 
-    def test_load_nonexistent_session(self, temp_db):
+    def test_load_nonexistent_session(self, storage):
         """Test loading a session that doesn't exist"""
-        storage = Storage(db_path=temp_db)
         loaded = storage.load_session("nonexistent")
         assert loaded is None
 
-    def test_list_sessions(self, temp_db):
+    def test_list_sessions(self, storage):
         """Test listing all sessions"""
-        storage = Storage(db_path=temp_db)
 
         # Create multiple sessions
         for i in range(3):
@@ -449,9 +460,8 @@ class TestStorage:
         assert "session1" in session_ids
         assert "session2" in session_ids
 
-    def test_update_existing_session(self, temp_db):
+    def test_update_existing_session(self, storage):
         """Test updating an existing session"""
-        storage = Storage(db_path=temp_db)
 
         # Create and save session
         session = Session(id="session1")
@@ -473,9 +483,8 @@ class TestStorage:
         assert len(loaded.tasks) == 1
         assert loaded.tasks["task1"].title == "New Task"
 
-    def test_save_session_with_agent(self, temp_db):
+    def test_save_session_with_agent(self, storage):
         """Test saving session with agent"""
-        storage = Storage(db_path=temp_db)
 
         session = Session(id="session1")
         agent = Agent(
