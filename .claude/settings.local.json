@@ -13,7 +13,13 @@
       "Bash(claude.cmd:*)",
       "Bash(tail:*)",
       "Bash(tasklist:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(curl:*)",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(lsof:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMDVjZWM1MS03ODA5LTRjZTgtOTk4NS01NzE5ODMwZTUyMjEiLCJ1c2VybmFtZSI6Im5ld3VzZXIiLCJyb2xlIjoidXNlciIsImV4cCI6MTc3NDE1NzM3OCwiaWF0IjoxNzc0MDcwOTc4fQ.ubFNZTRiZp_KwqZlMjTB3kR9ddeLf29j3Gj9abMFR4Y\")",
+      "Bash(dir:*)"
     ]
   }
 }

@@ -317,7 +317,7 @@
       "priority": "medium",
       "title": "性能优化",
       "description": "优化系统性能，减少响应时间",
-      "status": "pending",
+      "status": "done",
       "assignee_role": "dev",
       "steps": [
         "1. 性能分析（profiling）",
@@ -327,10 +327,10 @@
         "5. 添加缓存机制",
         "6. 压力测试验证"
       ],
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "已添加性能监控、数据库连接池、WebSocket消息队列、缓存机制和前端资源优化。性能测试通过。",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:21:35.556478"
+      "updated_at": "2026-03-21T13:45:00.000000"
     },
     {
       "id": "feat-018",
@@ -380,7 +380,7 @@
       "priority": "medium",
       "title": "集成测试覆盖",
       "description": "添加端到端集成测试",
-      "status": "pending",
+      "status": "done",
       "assignee_role": "qa",
       "steps": [
         "1. 设计测试用例",
@@ -390,10 +390,10 @@
         "5. 测试任务流转",
         "6. 测试持久化功能"
       ],
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "已完成15个集成测试，覆盖 WebSocket 连接、多 Agent 协作、任务流转和持久化功能。所有测试通过。",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:21:35.556478"
+      "updated_at": "2026-03-21T13:50:00.000000"
     },
     {
       "id": "feat-005",

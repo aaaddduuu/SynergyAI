@@ -7,6 +7,8 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 import sqlite3
 from pathlib import Path
+from contextlib import contextmanager
+import threading
 
 
 class TaskState(str, Enum):
@@ -262,110 +264,132 @@ Session ID: {self.id}
 class Storage:
     def __init__(self, db_path: str = "data/workspace.db"):
         self.db_path = db_path
+        self._local = threading.local()
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
-    def _init_db(self):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS sessions (
-                id TEXT PRIMARY KEY,
-                data TEXT,
-                created_at TEXT
+    @contextmanager
+    def _get_connection(self):
+        """获取数据库连接的上下文管理器（支持线程本地）"""
+        if not hasattr(self._local, 'conn') or self._local.conn is None:
+            self._local.conn = sqlite3.connect(
+                self.db_path,
+                check_same_thread=False,
+                timeout=10.0  # 10秒超时
             )
-        """)
-        
-        conn.commit()
-        conn.close()
+            # 启用 WAL 模式提高并发性能
+            self._local.conn.execute("PRAGMA journal_mode=WAL")
+            # 优化其他 SQLite 参数
+            self._local.conn.execute("PRAGMA synchronous=NORMAL")
+            self._local.conn.execute("PRAGMA cache_size=-64000")  # 64MB 缓存
+            self._local.conn.execute("PRAGMA temp_store=MEMORY")
+
+        yield self._local.conn
+
+    def _init_db(self):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            # 创建 sessions 表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id TEXT PRIMARY KEY,
+                    data TEXT,
+                    created_at TEXT
+                )
+            """)
+
+            # 为常用查询字段添加索引
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sessions_created_at
+                ON sessions(created_at DESC)
+            """)
+
+            conn.commit()
 
     def save_session(self, session: Session):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        session_data = {
-            "id": session.id,
-            "messages": [m.to_dict() for m in session.messages],
-            "agents": {k: v.to_dict() for k, v in session.agents.items()},
-            "tasks": {k: v.to_dict() for k, v in session.tasks.items()},
-            "turn_count": session.turn_count,
-            "is_active": session.is_active,
-            "handover_doc": session.handover_doc
-        }
-        
-        cursor.execute(
-            "INSERT OR REPLACE INTO sessions (id, data, created_at) VALUES (?, ?, ?)",
-            (session.id, json.dumps(session_data), session.created_at.isoformat())
-        )
-        
-        conn.commit()
-        conn.close()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            session_data = {
+                "id": session.id,
+                "messages": [m.to_dict() for m in session.messages],
+                "agents": {k: v.to_dict() for k, v in session.agents.items()},
+                "tasks": {k: v.to_dict() for k, v in session.tasks.items()},
+                "turn_count": session.turn_count,
+                "is_active": session.is_active,
+                "handover_doc": session.handover_doc
+            }
+
+            cursor.execute(
+                "INSERT OR REPLACE INTO sessions (id, data, created_at) VALUES (?, ?, ?)",
+                (session.id, json.dumps(session_data), session.created_at.isoformat())
+            )
+
+            conn.commit()
 
     def load_session(self, session_id: str) -> Optional[Session]:
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT data FROM sessions WHERE id = ?", (session_id,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
-            return None
-        
-        data = json.loads(row[0])
-        session = Session(data["id"])
-        session.turn_count = data.get("turn_count", 0)
-        session.is_active = data.get("is_active", True)
-        session.handover_doc = data.get("handover_doc")
-        
-        for m in data.get("messages", []):
-            msg = Message(
-                id=m["id"],
-                sender=m["sender"],
-                sender_role=m["sender_role"],
-                content=m["content"],
-                message_type=MessageType(m["message_type"]),
-                timestamp=datetime.fromisoformat(m["timestamp"]),
-                metadata=m.get("metadata", {})
-            )
-            session.messages.append(msg)
-        
-        for k, v in data.get("agents", {}).items():
-            agent = Agent(
-                id=v["id"],
-                name=v["name"],
-                role=AgentRole(v["role"]),
-                description=v["description"],
-                system_prompt="",
-                is_active=v.get("is_active", True),
-                current_task_id=v.get("current_task_id"),
-                message_count=v.get("message_count", 0)
-            )
-            session.agents[k] = agent
-        
-        for k, v in data.get("tasks", {}).items():
-            task = Task(
-                id=v["id"],
-                title=v["title"],
-                description=v["description"],
-                assignee=v.get("assignee"),
-                assignee_role=AgentRole(v["assignee_role"]) if v.get("assignee_role") else None,
-                state=TaskState(v["state"]),
-                created_by=v.get("created_by", ""),
-                priority=v.get("priority", "medium"),
-                notes=v.get("notes", [])
-            )
-            session.tasks[k] = task
-        
-        return session
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT data FROM sessions WHERE id = ?", (session_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            data = json.loads(row[0])
+            session = Session(data["id"])
+            session.turn_count = data.get("turn_count", 0)
+            session.is_active = data.get("is_active", True)
+            session.handover_doc = data.get("handover_doc")
+
+            for m in data.get("messages", []):
+                msg = Message(
+                    id=m["id"],
+                    sender=m["sender"],
+                    sender_role=m["sender_role"],
+                    content=m["content"],
+                    message_type=MessageType(m["message_type"]),
+                    timestamp=datetime.fromisoformat(m["timestamp"]),
+                    metadata=m.get("metadata", {})
+                )
+                session.messages.append(msg)
+
+            for k, v in data.get("agents", {}).items():
+                agent = Agent(
+                    id=v["id"],
+                    name=v["name"],
+                    role=AgentRole(v["role"]),
+                    description=v["description"],
+                    system_prompt="",
+                    is_active=v.get("is_active", True),
+                    current_task_id=v.get("current_task_id"),
+                    message_count=v.get("message_count", 0)
+                )
+                session.agents[k] = agent
+
+            for k, v in data.get("tasks", {}).items():
+                task = Task(
+                    id=v["id"],
+                    title=v["title"],
+                    description=v["description"],
+                    assignee=v.get("assignee"),
+                    assignee_role=AgentRole(v["assignee_role"]) if v.get("assignee_role") else None,
+                    state=TaskState(v["state"]),
+                    created_by=v.get("created_by", ""),
+                    priority=v.get("priority", "medium"),
+                    notes=v.get("notes", [])
+                )
+                session.tasks[k] = task
+
+            return session
 
     def list_sessions(self) -> List[dict]:
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT id, created_at FROM sessions ORDER BY created_at DESC")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [{"id": r[0], "created_at": r[1]} for r in rows]
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT id, created_at FROM sessions ORDER BY created_at DESC")
+            rows = cursor.fetchall()
+
+            return [{"id": r[0], "created_at": r[1]} for r in rows]

@@ -11,6 +11,9 @@ from typing import Optional, List, Dict, Any, Set
 import uuid
 from datetime import datetime
 from functools import wraps
+import time
+from collections import defaultdict
+import asyncio
 
 from core.storage import Session, Storage, Task, TaskState, AgentRole, Message
 from core.model_config import model_config_manager, ModelConfig, AgentModelConfig, MODEL_OPTIONS, PROVIDER_BASE_URLS
@@ -34,6 +37,123 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("ai_coworker")
+
+
+# ============ 性能监控 ============
+
+class PerformanceMonitor:
+    """性能监控工具"""
+
+    def __init__(self):
+        self.request_count = 0
+        self.response_times = defaultdict(list)
+        self.request_counts = defaultdict(int)
+        self.error_counts = defaultdict(int)
+        self.slow_queries = []
+        self.slow_threshold = 1.0  # 慢请求阈值（秒）
+
+    def record_request(self, path: str, duration: float, status_code: int):
+        """记录请求性能"""
+        self.request_count += 1
+        self.request_counts[path] += 1
+        self.response_times[path].append(duration)
+
+        if status_code >= 400:
+            self.error_counts[path] += 1
+
+        # 记录慢请求
+        if duration > self.slow_threshold:
+            self.slow_queries.append({
+                "path": path,
+                "duration": duration,
+                "timestamp": datetime.now().isoformat()
+            })
+            # 只保留最近100条慢请求
+            if len(self.slow_queries) > 100:
+                self.slow_queries.pop(0)
+
+    def get_stats(self) -> Dict[str, Any]:
+        """获取性能统计"""
+        stats = {
+            "total_requests": self.request_count,
+            "endpoint_stats": {}
+        }
+
+        for path, times in self.response_times.items():
+            if times:
+                stats["endpoint_stats"][path] = {
+                    "count": self.request_counts[path],
+                    "errors": self.error_counts[path],
+                    "avg_time": sum(times) / len(times),
+                    "min_time": min(times),
+                    "max_time": max(times),
+                    "p95_time": sorted(times)[int(len(times) * 0.95)] if len(times) >= 20 else max(times)
+                }
+
+        stats["slow_queries"] = self.slow_queries[-10:]  # 最近10条慢请求
+
+        return stats
+
+
+perf_monitor = PerformanceMonitor()
+
+
+# ============ 缓存管理器 ============
+
+class CacheManager:
+    """简单的内存缓存管理器"""
+
+    def __init__(self):
+        self._cache: Dict[str, tuple] = {}  # key: (value, expiry_time)
+        self._lock = asyncio.Lock()
+
+    def _is_expired(self, expiry_time: Optional[float]) -> bool:
+        """检查缓存是否过期"""
+        if expiry_time is None:
+            return False
+        return time.time() > expiry_time
+
+    async def get(self, key: str) -> Optional[Any]:
+        """获取缓存"""
+        async with self._lock:
+            if key in self._cache:
+                value, expiry_time = self._cache[key]
+                if not self._is_expired(expiry_time):
+                    return value
+                # 过期则删除
+                del self._cache[key]
+        return None
+
+    async def set(self, key: str, value: Any, ttl: int = 300):
+        """设置缓存（默认5分钟过期）"""
+        async with self._lock:
+            expiry_time = time.time() + ttl if ttl > 0 else None
+            self._cache[key] = (value, expiry_time)
+
+    async def delete(self, key: str):
+        """删除缓存"""
+        async with self._lock:
+            if key in self._cache:
+                del self._cache[key]
+
+    async def clear(self):
+        """清空所有缓存"""
+        async with self._lock:
+            self._cache.clear()
+
+    async def cleanup_expired(self):
+        """清理过期缓存"""
+        async with self._lock:
+            expired_keys = [
+                key for key, (_, expiry) in self._cache.items()
+                if expiry and self._is_expired(expiry)
+            ]
+            for key in expired_keys:
+                del self._cache[key]
+
+
+cache_manager = CacheManager()
+
 
 # ============ 认证相关的 Pydantic 模型 ============
 
@@ -227,6 +347,35 @@ app = FastAPI(
     ]
 )
 
+
+# ============ 性能监控中间件 ============
+
+@app.middleware("http")
+async def performance_middleware(request: Request, call_next):
+    """性能监控中间件"""
+    start_time = time.time()
+
+    # 处理请求
+    response = await call_next(request)
+
+    # 计算处理时间
+    process_time = time.time() - start_time
+
+    # 记录性能数据
+    path = request.url.path
+    status_code = response.status_code
+    perf_monitor.record_request(path, process_time, status_code)
+
+    # 添加响应头
+    response.headers["X-Process-Time"] = str(process_time)
+
+    # 慢请求日志
+    if process_time > perf_monitor.slow_threshold:
+        logger.warning(f"Slow request: {path} took {process_time:.3f}s")
+
+    return response
+
+
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 storage = Storage()
@@ -281,9 +430,13 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 
 class ConnectionManager:
+    """优化的 WebSocket 连接管理器"""
+
     def __init__(self):
         self.active_connections: List[WebSocket] = []
         self.connection_count = 0
+        self.message_queue = asyncio.Queue()  # 消息队列
+        self.broadcast_task = None  # 广播任务
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -291,23 +444,79 @@ class ConnectionManager:
         self.connection_count += 1
         logger.info(f"WebSocket connected. Total connections: {len(self.active_connections)}")
 
+        # 启动消息处理任务（如果还没启动）
+        if self.broadcast_task is None:
+            self.broadcast_task = asyncio.create_task(self._process_message_queue())
+
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
             logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
 
     async def send_personal_message(self, message: dict, websocket: WebSocket):
+        """发送个人消息（优化：使用异常处理和超时）"""
         try:
-            await websocket.send_json(message)
+            await asyncio.wait_for(websocket.send_json(message), timeout=5.0)
+        except asyncio.TimeoutError:
+            logger.warning("Send personal message timeout")
         except Exception as e:
             logger.warning(f"Failed to send personal message: {e}")
 
     async def broadcast(self, message: dict):
-        for connection in self.active_connections:
+        """广播消息（优化：使用消息队列批量发送）"""
+        await self.message_queue.put(("broadcast", message, None))
+
+    async def _process_message_queue(self):
+        """处理消息队列（批量发送优化）"""
+        while True:
             try:
-                await connection.send_json(message)
+                # 批量处理消息（最多100ms等待或10条消息）
+                messages = []
+                for _ in range(10):
+                    try:
+                        msg = await asyncio.wait_for(
+                            self.message_queue.get(),
+                            timeout=0.1
+                        )
+                        messages.append(msg)
+                    except asyncio.TimeoutError:
+                        break
+
+                if not messages:
+                    continue
+
+                # 批量发送消息
+                for msg_type, message, websocket in messages:
+                    if msg_type == "broadcast":
+                        await self._broadcast_now(message)
+                    elif msg_type == "personal" and websocket:
+                        await self.send_personal_message(message, websocket)
+
             except Exception as e:
-                logger.warning(f"Failed to broadcast message: {e}")
+                logger.error(f"Error processing message queue: {e}")
+
+    async def _broadcast_now(self, message: dict):
+        """立即广播消息（优化：并发发送）"""
+        if not self.active_connections:
+            return
+
+        # 并发发送所有消息
+        tasks = []
+        for connection in self.active_connections:
+            tasks.append(self._safe_send(connection, message))
+
+        # 等待所有发送完成（忽略失败）
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _safe_send(self, websocket: WebSocket, message: dict):
+        """安全发送消息（带异常处理）"""
+        try:
+            await asyncio.wait_for(websocket.send_json(message), timeout=5.0)
+        except Exception as e:
+            logger.debug(f"Failed to send to websocket: {e}")
+            # 发送失败时，移除连接
+            self.disconnect(websocket)
 
 
 manager = ConnectionManager()
@@ -566,6 +775,9 @@ async def configure(req: ConfigRequest):
 
         model_config_manager.set_default_config(config)
 
+        # 清除配置缓存
+        await cache_manager.delete("config:all")
+
         await manager.broadcast({
             "type": "config_updated",
             "provider": req.provider,
@@ -648,6 +860,12 @@ async def get_config():
 
     返回当前系统默认模型配置以及所有智能体角色的配置信息。
     """
+    # 尝试从缓存获取
+    cache_key = "config:all"
+    cached_config = await cache_manager.get(cache_key)
+    if cached_config is not None:
+        return cached_config
+
     try:
         default_config = model_config_manager.get_default_config()
 
@@ -682,12 +900,17 @@ async def get_config():
                     "has_api_key": bool(default_config.api_key)
                 }
 
-        return {
+        result = {
             "default": default_response,
             "agents": agent_configs,
             "providers": list(MODEL_OPTIONS.keys()),
             "models": MODEL_OPTIONS
         }
+
+        # 缓存结果（5分钟）
+        await cache_manager.set(cache_key, result, ttl=300)
+
+        return result
     except Exception as e:
         logger.error(f"Get config error: {str(e)}", exc_info=True)
         # 返回安全的默认配置
@@ -1340,6 +1563,15 @@ async def health_check():
         "version": "1.0.0",
         "connections": len(manager.active_connections)
     }
+
+
+@app.get("/api/performance", tags=["health"], summary="性能统计", description="获取系统性能统计数据")
+async def get_performance_stats():
+    """性能统计
+
+    返回系统性能统计数据，包括请求计数、响应时间、慢请求等。
+    """
+    return perf_monitor.get_stats()
 
 
 if __name__ == "__main__":
