@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T12:50:33.524041",
+  "last_updated": "2026-03-21T12:55:02.952285",
   "features": [
     {
       "id": "feat-001",
@@ -266,9 +266,9 @@
         "5. 验证一次只处理一个任务"
       ],
       "passes": true,
-      "notes": "已完成：强化增量工作原则提示词，添加违规检测机制，所有测试通过",
+      "notes": "参考 Anthropic 文章最佳实践",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T13:00:00.000000"
+      "updated_at": "2026-03-21T12:54:02.949054"
     },
     {
       "id": "feat-014",
@@ -276,7 +276,7 @@
       "priority": "high",
       "title": "增强 QA 测试验证能力",
       "description": "确保 QA Agent 真正执行端到端测试，而不只看代码",
-      "status": "pending",
+      "status": "done",
       "assignee_role": "qa",
       "steps": [
         "1. 审查 QA Agent 提示词",
@@ -286,9 +286,9 @@
         "5. 优化测试报告输出"
       ],
       "passes": true,
-      "notes": "参考 Anthropic 文章测试部分",
+      "notes": "已完成 QA Agent 提示词增强、测试检查清单创建、测试报告优化",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:45:43.840979"
+      "updated_at": "2026-03-21T13:00:00.000000"
     },
     {
       "id": "feat-015",
@@ -419,10 +419,10 @@
   "statistics": {
     "total": 20,
     "by_status": {
-      "pending": 17,
+      "pending": 16,
       "in_progress": 1,
       "review": 0,
-      "done": 2
+      "done": 3
     },
     "by_priority": {
       "high": 4,

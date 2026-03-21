@@ -214,20 +214,37 @@ class TaskValidator:
         return suite
 
 
-def create_test_report(test_suite: TestSuite) -> str:
+def create_test_report(test_suite: TestSuite, task_info: dict = None) -> str:
     """
-    生成测试报告
+    生成增强的测试报告
 
     Args:
         test_suite: 测试套件
+        task_info: 任务信息（可选）
 
     Returns:
         格式化的测试报告（Markdown）
     """
     summary = test_suite.get_summary()
+    from datetime import datetime
 
     report = f"""
 # 🧪 测试报告：{test_suite.name}
+
+## 📋 测试概况
+- **测试时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+- **测试人**: QA Agent
+- **测试范围**: {test_suite.description}
+"""
+
+    if task_info:
+        report += f"""
+- **任务标题**: {task_info.get('title', 'N/A')}
+- **任务ID**: {task_info.get('id', 'N/A')}
+- **负责人**: {task_info.get('assignee_role', 'N/A')}
+"""
+
+    report += f"""
 
 ## 📊 测试摘要
 - **总测试数**: {summary['total']}
@@ -271,6 +288,80 @@ def create_test_report(test_suite: TestSuite) -> str:
             report += f"**备注**: {test.notes}\n"
 
         report += "---\n"
+
+    # 添加测试总结和结论
+    report += f"""
+
+## 🎯 测试总结
+
+### 通过率分析
+"""
+    if summary['total'] > 0:
+        pass_rate = float(summary['pass_rate'].replace('%', ''))
+        if pass_rate >= 90:
+            report += "✅ **优秀**: 通过率 ≥ 90%\n"
+        elif pass_rate >= 70:
+            report += "⚠️ **良好**: 通过率 ≥ 70%\n"
+        elif pass_rate >= 50:
+            report += "⚠️ **一般**: 通过率 ≥ 50%\n"
+        else:
+            report += "❌ **不合格**: 通过率 < 50%\n"
+
+    report += f"""
+### 失败用例分析
+- **失败数量**: {summary['failed']}
+- **待测试数量**: {summary['pending']}
+"""
+
+    if summary['failed'] > 0:
+        failed_tests = [t for t in test_suite.test_cases if t.status == TestStatus.FAILED]
+        report += "\n**失败用例详情**:\n"
+        for test in failed_tests:
+            report += f"- 测试 {test.id}: {test.name}\n"
+            if test.notes:
+                report += f"  问题: {test.notes}\n"
+
+    report += f"""
+
+## 📌 最终结论
+
+"""
+
+    # 判断测试是否通过
+    all_critical_passed = all(
+        t.status == TestStatus.PASSED for t in test_suite.test_cases
+        if 'critical' in t.name.lower() or '核心' in t.name or '关键' in t.name
+    ) if summary['total'] > 0 else True
+
+    if summary['failed'] == 0 and summary['pending'] == 0:
+        report += """**✅ 测试通过**
+
+所有测试用例均已通过，功能符合预期。
+
+"""
+    elif summary['failed'] == 0 and all_critical_passed:
+        report += """**✅ 测试基本通过**
+
+核心功能测试通过，仍有部分测试待完成。
+
+"""
+    else:
+        report += """**❌ 测试未通过**
+
+存在失败的测试用例，需要修复后重新测试。
+
+"""
+
+    # 添加改进建议
+    if summary['failed'] > 0:
+        report += """
+## 💡 改进建议
+
+1. 优先修复失败的测试用例
+2. 确保核心功能正常工作
+3. 完善错误处理机制
+4. 补充边界条件测试
+"""
 
     return report
 
