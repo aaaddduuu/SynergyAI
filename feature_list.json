@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T13:50:13.562682",
+  "last_updated": "2026-03-21T13:56:48.997672",
   "features": [
     {
       "id": "feat-001",
@@ -104,7 +104,7 @@
       "passes": false,
       "notes": "",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:21:35.556478"
+      "updated_at": "2026-03-21T13:56:48.997672"
     },
     {
       "id": "feat-007",
@@ -307,9 +307,9 @@
         "5. 添加最佳实践说明"
       ],
       "passes": true,
-      "notes": "已完成所有文档：增强的快速开始指南、FAQ、故障排除指南、视频教程脚本、最佳实践指南。所有文档都包含详细的示例和说明。",
+      "notes": "",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T14:00:00.000000"
+      "updated_at": "2026-03-21T13:53:42.155789"
     },
     {
       "id": "feat-017",
@@ -359,7 +359,7 @@
       "priority": "medium",
       "title": "功能清单系统集成",
       "description": "将 feature_list.json 集成到 Agent 系统中",
-      "status": "pending",
+      "status": "done",
       "assignee_role": "dev",
       "steps": [
         "1. 创建 Feature 数据模型",
@@ -369,10 +369,10 @@
         "5. 自动选择下一个待办功能",
         "6. 生成进度报告"
       ],
-      "passes": false,
-      "notes": "参考 Anthropic 文章 feature list 部分",
+      "passes": true,
+      "notes": "已完成 Feature 数据模型、FeatureList 管理类、API 端点、Agent 集成。所有测试通过。",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:21:35.556478"
+      "updated_at": "2026-03-21T14:00:00.000000"
     },
     {
       "id": "feat-020",
@@ -419,10 +419,10 @@
   "statistics": {
     "total": 20,
     "by_status": {
-      "pending": 8,
-      "in_progress": 1,
+      "pending": 7,
+      "in_progress": 0,
       "review": 0,
-      "done": 11
+      "done": 13
     },
     "by_priority": {
       "high": 4,

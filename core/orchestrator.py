@@ -451,6 +451,19 @@ class MultiAgentOrchestrator:
                             task_updates.append(f"删除任务: {op['title']}")
                             operations_summary["deleted"] += 1
                             break
+
+                elif op['action'] == 'update_feature_state':
+                    # 更新功能清单状态
+                    feature_id = op['feature_id']
+                    new_status = op['state']
+
+                    if feature_id in self.feature_list.features:
+                        old_status = self.feature_list.features[feature_id].status
+                        self.feature_list.update_feature_status(feature_id, new_status)
+                        task_updates.append(f"更新功能 {feature_id} 状态: {old_status} → {new_status}")
+                        operations_summary["updated"] += 1
+                    else:
+                        task_updates.append(f"功能 {feature_id} 不存在")
             except Exception as e:
                 task_updates.append(f"操作失败: {str(e)}")
 

@@ -1574,6 +1574,196 @@ async def get_performance_stats():
     return perf_monitor.get_stats()
 
 
+# ============ Feature List API ============
+
+from core.features import FeatureList, Feature, FeatureStatus, FeaturePriority
+
+# Initialize feature list
+feature_list = FeatureList()
+
+
+@app.get("/api/features", tags=["features"], summary="获取功能清单", description="获取所有功能列表")
+async def get_features(
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    priority: Optional[str] = None,
+    assignee_role: Optional[str] = None
+):
+    """获取功能清单
+
+    支持按状态、类别、优先级、负责人筛选
+    """
+    features = list(feature_list.features.values())
+
+    # Filter by status
+    if status:
+        features = [f for f in features if f.status == status]
+
+    # Filter by category
+    if category:
+        features = [f for f in features if f.category == category]
+
+    # Filter by priority
+    if priority:
+        features = [f for f in features if f.priority == priority]
+
+    # Filter by assignee_role
+    if assignee_role:
+        features = [f for f in features if f.assignee_role == assignee_role]
+
+    return {
+        "features": [f.to_dict() for f in features],
+        "total": len(features)
+    }
+
+
+@app.get("/api/features/statistics", tags=["features"], summary="获取功能统计", description="获取功能清单统计信息")
+async def get_feature_statistics():
+    """获取功能统计
+
+    返回功能清单的统计数据，包括完成进度、按状态/优先级/类别分布等。
+    """
+    return feature_list.get_statistics()
+
+
+@app.get("/api/features/summary", tags=["features"], summary="获取功能进度摘要", description="获取功能清单进度摘要")
+async def get_feature_summary():
+    """获取功能进度摘要
+
+    返回功能清单的文本格式进度摘要。
+    """
+    return {
+        "summary": feature_list.get_progress_summary()
+    }
+
+
+@app.get("/api/features/report", tags=["features"], summary="获取功能报告", description="获取完整的功能清单报告")
+async def get_feature_report():
+    """获取功能报告
+
+    返回完整的功能清单报告。
+    """
+    return {
+        "report": feature_list.generate_report()
+    }
+
+
+@app.get("/api/features/next", tags=["features"], summary="获取下一个待办功能", description="获取下一个待处理的功能")
+async def get_next_feature(assignee_role: Optional[str] = None):
+    """获取下一个待办功能
+
+    返回优先级最高的待处理功能。
+    """
+    feature = feature_list.get_next_feature(assignee_role)
+
+    if not feature:
+        raise HTTPException(status_code=404, detail="没有待处理的功能")
+
+    return feature.to_dict()
+
+
+@app.get("/api/features/pending", tags=["features"], summary="获取待办功能列表", description="获取待处理功能列表")
+async def get_pending_features(limit: int = 10):
+    """获取待办功能列表
+
+    返回指定数量的待处理功能。
+    """
+    features = feature_list.get_pending_features(limit)
+
+    return {
+        "features": [f.to_dict() for f in features],
+        "total": len(features)
+    }
+
+
+@app.put("/api/features/{feature_id}/status", tags=["features"], summary="更新功能状态", description="更新功能状态")
+async def update_feature_status(feature_id: str, status: str):
+    """更新功能状态
+
+    更新指定功能的状态。
+    """
+    if status not in [s.value for s in FeatureStatus]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"无效的状态值。可选值: {', '.join([s.value for s in FeatureStatus])}"
+        )
+
+    if feature_id not in feature_list.features:
+        raise HTTPException(status_code=404, detail=f"功能 {feature_id} 不存在")
+
+    feature_list.update_feature_status(feature_id, status)
+
+    return {
+        "message": f"功能 {feature_id} 状态已更新为 {status}",
+        "feature": feature_list.features[feature_id].to_dict()
+    }
+
+
+@app.post("/api/features", tags=["features"], summary="添加新功能", description="添加新功能到清单")
+async def add_feature(
+    id: str,
+    category: str,
+    priority: str,
+    title: str,
+    description: str,
+    assignee_role: str,
+    steps: List[str],
+    notes: str = ""
+):
+    """添加新功能
+
+    添加新功能到功能清单。
+    """
+    # Validate inputs
+    if id in feature_list.features:
+        raise HTTPException(status_code=400, detail=f"功能 ID {id} 已存在")
+
+    if priority not in [p.value for p in FeaturePriority]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"无效的优先级。可选值: {', '.join([p.value for p in FeaturePriority])}"
+        )
+
+    if assignee_role not in [r.value for r in AgentRole]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"无效的角色。可选值: {', '.join([r.value for r in AgentRole])}"
+        )
+
+    # Create feature
+    feature = Feature(
+        id=id,
+        category=category,
+        priority=priority,
+        title=title,
+        description=description,
+        status=FeatureStatus.PENDING.value,
+        assignee_role=assignee_role,
+        steps=steps,
+        passes=False,
+        notes=notes
+    )
+
+    feature_list.add_feature(feature)
+
+    return {
+        "message": f"功能 {title} 已添加",
+        "feature": feature.to_dict()
+    }
+
+
+@app.get("/api/features/{feature_id}", tags=["features"], summary="获取功能详情", description="获取指定功能的详细信息")
+async def get_feature(feature_id: str):
+    """获取功能详情
+
+    返回指定功能的详细信息。
+    """
+    if feature_id not in feature_list.features:
+        raise HTTPException(status_code=404, detail=f"功能 {feature_id} 不存在")
+
+    return feature_list.features[feature_id].to_dict()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

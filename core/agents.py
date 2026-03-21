@@ -43,11 +43,18 @@ TASK_OPERATION_PROMPT = """
 ```
 示例: `[任务] 删除: 测试任务
 
+### 更新功能清单状态
+```
+[功能] 状态: 功能ID | 新状态(pending/in_progress/review/done)
+```
+示例: `[功能] 状态: feat-019 | done`
+
 重要：
 - 只有PM可以分配任务和创建任务
 - Dev完成任务后，将状态改为 review 提交给QA
 - QA审核通过后，将状态改为 done
 - 进行任务操作后，必须通知用户
+- 当完成一个功能清单中的功能时，使用 [功能] 指令更新状态
 """
 
 
@@ -505,17 +512,18 @@ def get_agent_description(role: AgentRole) -> str:
 
 class TaskOperation:
     """Parse and execute task operations from agent responses"""
-    
+
     CREATE_PATTERN = re.compile(r'\[任务\]\s*创建:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(dev|qa|ba|architect|pm)\s*\|\s*(low|medium|high)', re.IGNORECASE)
     STATE_PATTERN = re.compile(r'\[任务\]\s*状态:\s*(.+?)\s*\|\s*(pending|in_progress|review|done)', re.IGNORECASE)
     ASSIGN_PATTERN = re.compile(r'\[任务\]\s*分配:\s*(.+?)\s*\|\s*(dev|qa|ba|architect|pm)', re.IGNORECASE)
     DELETE_PATTERN = re.compile(r'\[任务\]\s*删除:\s*(.+?)$', re.IGNORECASE)
-    
+    FEATURE_STATE_PATTERN = re.compile(r'\[功能\]\s*状态:\s*(.+?)\s*\|\s*(pending|in_progress|review|done)', re.IGNORECASE)
+
     @staticmethod
     def parse(text: str) -> List[Dict[str, Any]]:
         """Parse task operations from text"""
         operations = []
-        
+
         for match in TaskOperation.CREATE_PATTERN.finditer(text):
             operations.append({
                 'action': 'create',
@@ -524,29 +532,36 @@ class TaskOperation:
                 'assignee_role': match.group(3).strip(),
                 'priority': match.group(4).strip()
             })
-        
+
         for match in TaskOperation.STATE_PATTERN.finditer(text):
             operations.append({
                 'action': 'update_state',
                 'title': match.group(1).strip(),
                 'state': match.group(2).strip()
             })
-        
+
         for match in TaskOperation.ASSIGN_PATTERN.finditer(text):
             operations.append({
                 'action': 'assign',
                 'title': match.group(1).strip(),
                 'assignee_role': match.group(2).strip()
             })
-        
+
         for match in TaskOperation.DELETE_PATTERN.finditer(text):
             operations.append({
                 'action': 'delete',
                 'title': match.group(1).strip()
             })
-        
+
+        for match in TaskOperation.FEATURE_STATE_PATTERN.finditer(text):
+            operations.append({
+                'action': 'update_feature_state',
+                'feature_id': match.group(1).strip(),
+                'state': match.group(2).strip()
+            })
+
         return operations
-    
+
     @staticmethod
     def has_operation(text: str) -> bool:
         """Check if text contains task operations"""
@@ -554,5 +569,6 @@ class TaskOperation:
             TaskOperation.CREATE_PATTERN.search(text) or
             TaskOperation.STATE_PATTERN.search(text) or
             TaskOperation.ASSIGN_PATTERN.search(text) or
-            TaskOperation.DELETE_PATTERN.search(text)
+            TaskOperation.DELETE_PATTERN.search(text) or
+            TaskOperation.FEATURE_STATE_PATTERN.search(text)
         )
