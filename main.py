@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
 from typing import Optional, List, Dict, Any, Set
 import uuid
@@ -348,6 +349,17 @@ app = FastAPI(
 )
 
 
+# ============ CORS 配置 ============
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允许所有来源（开发环境）
+    allow_credentials=True,
+    allow_methods=["*"],  # 允许所有方法
+    allow_headers=["*"],  # 允许所有请求头
+)
+
+
 # ============ 性能监控中间件 ============
 
 @app.middleware("http")
@@ -381,6 +393,7 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 storage = Storage()
 orchestrator: Optional[MultiAgentOrchestrator] = None
 current_session: Optional[Session] = None
+session_creation_lock = asyncio.Lock()
 
 
 class APIError(Exception):
@@ -948,8 +961,8 @@ async def websocket_chat(websocket: WebSocket):
     - `typing`: 正在输入
     - `error`: 错误信息
     """
-    await manager.connect(websocket)
     try:
+        await manager.connect(websocket)
         await websocket.send_json({
             "type": "connected",
             "message": "WebSocket连接成功"
@@ -957,17 +970,25 @@ async def websocket_chat(websocket: WebSocket):
         logger.info("WebSocket connection established")
 
         while True:
-            data = await websocket.receive_json()
-            await handle_websocket_message(data, websocket)
-
+            try:
+                data = await websocket.receive_json()
+                await handle_websocket_message(data, websocket)
+            except WebSocketDisconnect:
+                logger.info("WebSocket client disconnected")
+                break
+            except Exception as e:
+                logger.error(f"Error handling WebSocket message: {str(e)}")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"处理消息失败: {str(e)}"
+                })
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        logger.info("WebSocket disconnected during connection")
     except Exception as e:
-        logger.error(f"WebSocket error: {str(e)}")
-        await manager.send_personal_message({
-            "type": "error",
-            "message": str(e)
-        }, websocket)
+        logger.error(f"WebSocket connection error: {str(e)}", exc_info=True)
+    finally:
+        manager.disconnect(websocket)
+        logger.info("WebSocket connection closed")
 
 
 async def handle_websocket_message(data: dict, websocket: WebSocket):
@@ -1043,16 +1064,17 @@ async def handle_websocket_message(data: dict, websocket: WebSocket):
             }, websocket)
 
     elif msg_type == "create_session":
-        session = Session()
-        current_session = session
-        storage.save_session(session)
-        logger.info(f"Session created: {session.id}")
+        async with session_creation_lock:
+            session = Session()
+            current_session = session
+            storage.save_session(session)
+            logger.info(f"Session created: {session.id}")
 
-        await manager.send_personal_message({
-            "type": "session_created",
-            "session_id": session.id,
-            "message": "新项目创建成功！"
-        }, websocket)
+            await manager.send_personal_message({
+                "type": "session_created",
+                "session_id": session.id,
+                "message": "新项目创建成功！"
+            }, websocket)
 
     elif msg_type == "typing":
         await manager.send_personal_message({

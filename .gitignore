@@ -39,9 +39,11 @@ logs/
 .server.pid
 
 # Database
-data/*.db
-data/*.sqlite
+data/
+*.db
+*.sqlite
 *.sqlite3
+synergyai.db
 
 # OS
 .DS_Store
