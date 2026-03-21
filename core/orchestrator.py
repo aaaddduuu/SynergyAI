@@ -342,6 +342,39 @@ class MultiAgentOrchestrator:
         
         return state
     
+    def _check_incremental_work_violations(self, session: Session, operations: list, current_agent: str) -> list:
+        """检查是否违反增量工作原则"""
+        warnings = []
+
+        # 检查 1: 同时创建或分配多个任务
+        create_ops = [op for op in operations if op['action'] == 'create']
+        assign_ops = [op for op in operations if op['action'] == 'assign']
+
+        if len(create_ops) > 1:
+            warnings.append(f"⚠️ 违规检测：一次性创建了 {len(create_ops)} 个任务，违反增量工作原则！")
+            warnings.append(f"   请：一次只创建一个任务")
+
+        if len(assign_ops) > 1:
+            warnings.append(f"⚠️ 违规检测：一次性分配了 {len(assign_ops)} 个任务，违反增量工作原则！")
+            warnings.append(f"   请：一次只分配一个任务")
+
+        # 检查 2: 是否有正在进行的任务时又创建新任务
+        in_progress_tasks = [task for task in session.tasks.values() if task.state == TaskState.IN_PROGRESS]
+        if create_ops and in_progress_tasks:
+            warnings.append(f"⚠️ 违规检测：存在 {len(in_progress_tasks)} 个进行中的任务，却又创建新任务！")
+            warnings.append(f"   进行中的任务: {', '.join([task.title for task in in_progress_tasks])}")
+            warnings.append(f"   请：先完成当前任务，再创建新任务")
+
+        # 检查 3: DEV 是否在多个任务间切换
+        if current_agent == "dev_agent":
+            update_ops = [op for op in operations if op['action'] == 'update_state']
+            in_progress_count = sum(1 for op in update_ops if op['state'] == 'in_progress')
+            if in_progress_count > 1:
+                warnings.append(f"⚠️ 违规检测：同时开始 {in_progress_count} 个任务！")
+                warnings.append(f"   请：专注完成一个任务后再开始下一个")
+
+        return warnings
+
     def execute_task_operations(self, state: AgentState) -> AgentState:
         """Execute task operations found in the agent's response"""
         session = state["session"]
@@ -353,6 +386,22 @@ class MultiAgentOrchestrator:
 
         content = last_msg.content
         operations = TaskOperation.parse(content)
+
+        # 检查增量工作违规行为
+        violations = self._check_incremental_work_violations(
+            session, operations, state.get("current_agent", "")
+        )
+        if violations:
+            violation_msg = Message(
+                id=str(uuid.uuid4()),
+                sender="系统（增量工作检查）",
+                sender_role="system",
+                content="⚠️ **增量工作原则违规检测**\n\n" + "\n".join(violations) +
+                       "\n\n**请立即纠正行为，专注完成一个任务！**",
+                message_type=MessageType.SYSTEM
+            )
+            session.add_message(violation_msg)
+            return state
 
         # 记录任务操作统计
         operations_summary = {

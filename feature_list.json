@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T12:48:11.135799",
+  "last_updated": "2026-03-21T12:50:33.524041",
   "features": [
     {
       "id": "feat-001",
@@ -41,9 +41,9 @@
         "6. 编写部署文档"
       ],
       "passes": true,
-      "notes": "已完成：docker-compose.yml, .env.example, .dockerignore, 构建脚本, 部署文档",
+      "notes": "需要包含 Python、数据库、前端服务",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T13:00:00.000000"
+      "updated_at": "2026-03-21T12:49:33.520481"
     },
     {
       "id": "feat-003",
@@ -256,7 +256,7 @@
       "priority": "high",
       "title": "优化 Agent 增量工作流程",
       "description": "确保 Agent 严格遵循增量工作原则，一次只处理一个任务",
-      "status": "pending",
+      "status": "done",
       "assignee_role": "ba",
       "steps": [
         "1. 审查当前 Agent 提示词",
@@ -266,9 +266,9 @@
         "5. 验证一次只处理一个任务"
       ],
       "passes": true,
-      "notes": "参考 Anthropic 文章最佳实践",
+      "notes": "已完成：强化增量工作原则提示词，添加违规检测机制，所有测试通过",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:45:43.839469"
+      "updated_at": "2026-03-21T13:00:00.000000"
     },
     {
       "id": "feat-014",
@@ -419,10 +419,10 @@
   "statistics": {
     "total": 20,
     "by_status": {
-      "pending": 18,
+      "pending": 17,
       "in_progress": 1,
       "review": 0,
-      "done": 1
+      "done": 2
     },
     "by_priority": {
       "high": 4,
