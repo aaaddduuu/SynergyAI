@@ -15,6 +15,7 @@ from functools import wraps
 from core.storage import Session, Storage, Task, TaskState, AgentRole, Message
 from core.model_config import model_config_manager, ModelConfig, AgentModelConfig, MODEL_OPTIONS, PROVIDER_BASE_URLS
 from core.orchestrator import MultiAgentOrchestrator
+from core.auth import auth_manager, User, UserRole, hash_password
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 logs_dir = os.path.join(BASE_DIR, "logs")
@@ -33,6 +34,117 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("ai_coworker")
+
+# ============ 认证相关的 Pydantic 模型 ============
+
+class UserRegister(BaseModel):
+    """用户注册请求"""
+    username: str
+    email: str
+    password: str
+    role: str = "user"
+
+    @validator('username')
+    def validate_username(cls, v):
+        if not (3 <= len(v) <= 50):
+            raise ValueError('用户名长度必须在3-50个字符之间')
+        if not v.replace('_', '').replace('-', '').isalnum():
+            raise ValueError('用户名只能包含字母、数字、下划线和连字符')
+        return v
+
+    @validator('email')
+    def validate_email(cls, v):
+        if '@' not in v or '.' not in v.split('@')[-1]:
+            raise ValueError('邮箱格式不正确')
+        return v
+
+    @validator('password')
+    def validate_password(cls, v):
+        if len(v) < 6:
+            raise ValueError('密码长度至少为6个字符')
+        return v
+
+    @validator('role')
+    def validate_role(cls, v):
+        valid_roles = ['admin', 'user', 'guest']
+        if v not in valid_roles:
+            raise ValueError(f'角色必须是以下之一: {", ".join(valid_roles)}')
+        return v
+
+
+class UserLogin(BaseModel):
+    """用户登录请求"""
+    username: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    """Token 响应"""
+    access_token: str
+    token_type: str = "bearer"
+    user: dict
+
+
+class UserResponse(BaseModel):
+    """用户信息响应"""
+    id: str
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: str
+    last_login: Optional[str] = None
+
+
+# ============ 权限装饰器 ============
+
+def require_auth(*roles: UserRole):
+    """权限验证装饰器
+
+    Args:
+        *roles: 允许的角色列表，如果为空则只要求登录
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # 从请求头获取 token
+            request = kwargs.get('request')
+            if not request:
+                raise HTTPException(status_code=401, detail="无法获取请求信息")
+
+            auth_header = request.headers.get("Authorization")
+            if not auth_header or not auth_header.startswith("Bearer "):
+                raise HTTPException(status_code=401, detail="未提供认证令牌")
+
+            token = auth_header.split(" ")[1]
+            payload = auth_manager.verify_token(token)
+
+            if not payload:
+                raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+            user_id = payload.get("sub")
+            user = auth_manager.get_user_by_id(user_id)
+
+            if not user:
+                raise HTTPException(status_code=401, detail="用户不存在")
+
+            if not user.is_active:
+                raise HTTPException(status_code=403, detail="用户账户已被禁用")
+
+            # 检查角色权限
+            if roles and user.role not in roles:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"需要以下角色之一: {', '.join([r.value for r in roles])}"
+                )
+
+            # 将用户信息添加到 kwargs
+            kwargs['current_user'] = user
+
+            return await func(*args, **kwargs)
+        return wrapper
+    return decorator
+
 
 app = FastAPI(
     title="SynergyAI API",
@@ -80,6 +192,10 @@ app = FastAPI(
         "name": "MIT License",
     },
     tags=[
+        {
+            "name": "auth",
+            "description": "用户认证相关接口"
+        },
         {
             "name": "session",
             "description": "会话管理相关接口"
@@ -404,6 +520,13 @@ def log_request(func):
             logger.error(f"Error in {func.__name__}: {str(e)}")
             raise
     return wrapper
+
+
+@app.get("/login", response_class=HTMLResponse, tags=["ui"], summary="登录页面", description="用户登录注册页面")
+@log_request
+async def login_page(request: Request):
+    """返回登录页面"""
+    return templates.TemplateResponse("login.html", {"request": request})
 
 
 @app.get("/", response_class=HTMLResponse, tags=["health"])
@@ -1027,6 +1150,182 @@ async def get_handover():
         return {"handover": None}
 
     return {"handover": current_session.handover_doc}
+
+
+# ============ 认证相关端点 ============
+
+@app.post("/api/auth/register", tags=["auth"], summary="用户注册", description="注册新用户")
+@log_request
+async def register(user_data: UserRegister):
+    """用户注册
+
+    创建新用户账户。
+
+    - **username**: 用户名 (3-50个字符)
+    - **email**: 邮箱地址
+    - **password**: 密码 (至少6个字符)
+    - **role**: 角色 (admin/user/guest，默认为user)
+    """
+    try:
+        # 检查用户名是否已存在
+        existing_user = auth_manager.get_user_by_username(user_data.username)
+        if existing_user:
+            raise HTTPException(status_code=400, detail="用户名已存在")
+
+        # 检查邮箱是否已存在
+        existing_email = auth_manager.get_user_by_email(user_data.email)
+        if existing_email:
+            raise HTTPException(status_code=400, detail="邮箱已被使用")
+
+        # 创建用户
+        user = auth_manager.create_user(
+            username=user_data.username,
+            email=user_data.email,
+            password=user_data.password,
+            role=UserRole(user_data.role)
+        )
+
+        logger.info(f"New user registered: {user.username}")
+
+        return {
+            "message": "注册成功",
+            "user": user.to_dict()
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        raise HTTPException(status_code=500, detail="注册失败")
+
+
+@app.post("/api/auth/login", tags=["auth"], summary="用户登录", description="用户登录获取访问令牌")
+@log_request
+async def login(login_data: UserLogin):
+    """用户登录
+
+    使用用户名和密码登录，成功返回JWT访问令牌。
+
+    - **username**: 用户名
+    - **password**: 密码
+
+    返回的access_token需要在后续请求中通过Authorization头发送：
+    Authorization: Bearer <access_token>
+    """
+    try:
+        # 验证用户凭据
+        user = auth_manager.authenticate(login_data.username, login_data.password)
+
+        if not user:
+            raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+        # 创建访问令牌
+        access_token = auth_manager.create_access_token(user)
+
+        logger.info(f"User logged in: {user.username}")
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": user.to_dict()
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(status_code=500, detail="登录失败")
+
+
+@app.get("/api/auth/me", tags=["auth"], summary="获取当前用户信息", description="获取当前登录用户的信息")
+@log_request
+async def get_current_user(request: Request):
+    """获取当前用户信息
+
+    返回当前登录用户的详细信息。
+    需要在请求头中提供有效的JWT令牌。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+    user = auth_manager.get_user_by_id(user_id)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    return user.to_dict()
+
+
+@app.put("/api/auth/me", tags=["auth"], summary="更新当前用户信息", description="更新当前登录用户的信息")
+@log_request
+async def update_current_user(
+    request: Request,
+    email: Optional[str] = None,
+    password: Optional[str] = None
+):
+    """更新当前用户信息
+
+    更新当前登录用户的邮箱或密码。
+    需要在请求头中提供有效的JWT令牌。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+    user = auth_manager.get_user_by_id(user_id)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 这里可以添加更新用户信息的逻辑
+    # 由于当前的AuthManager没有实现更新方法，暂时返回成功消息
+    return {"message": "用户信息更新功能待实现"}
+
+
+@app.get("/api/auth/users", tags=["auth"], summary="获取用户列表", description="获取所有用户列表（需要管理员权限）")
+@log_request
+async def list_users(request: Request):
+    """获取用户列表
+
+    返回系统中所有用户的列表。
+    需要管理员权限。
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="未提供认证令牌")
+
+    token = auth_header.split(" ")[1]
+    payload = auth_manager.verify_token(token)
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+
+    user_id = payload.get("sub")
+    current_user = auth_manager.get_user_by_id(user_id)
+
+    if not current_user or current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+
+    users = auth_manager.list_users()
+    return {
+        "users": [user.to_dict() for user in users],
+        "total": len(users)
+    }
 
 
 @app.get("/api/health", tags=["health"], summary="健康检查", description="检查系统运行状态")
