@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T13:56:48.997672",
+  "last_updated": "2026-03-21T22:52:48.841008",
   "features": [
     {
       "id": "feat-001",
@@ -91,7 +91,7 @@
       "priority": "low",
       "title": "前端 JS/CSS 分离",
       "description": "将前端代码分离到独立的 JS 和 CSS 文件",
-      "status": "pending",
+      "status": "done",
       "assignee_role": "dev",
       "steps": [
         "1. 创建 static/js/ 目录",
@@ -101,10 +101,10 @@
         "5. 更新 index.html 引用",
         "6. 测试功能完整性"
       ],
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "已完成前端代码分离，index.html 从 2167 行减少到 588 行。static 文件已挂载到 FastAPI。",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T13:56:48.997672"
+      "updated_at": "2026-03-21T22:52:48.840507"
     },
     {
       "id": "feat-007",
@@ -370,9 +370,9 @@
         "6. 生成进度报告"
       ],
       "passes": true,
-      "notes": "已完成 Feature 数据模型、FeatureList 管理类、API 端点、Agent 集成。所有测试通过。",
+      "notes": "参考 Anthropic 文章 feature list 部分",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T14:00:00.000000"
+      "updated_at": "2026-03-21T13:57:17.170729"
     },
     {
       "id": "feat-020",
@@ -419,10 +419,10 @@
   "statistics": {
     "total": 20,
     "by_status": {
-      "pending": 7,
+      "pending": 6,
       "in_progress": 0,
       "review": 0,
-      "done": 13
+      "done": 14
     },
     "by_priority": {
       "high": 4,
