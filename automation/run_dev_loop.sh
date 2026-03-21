@@ -8,7 +8,8 @@
 # 示例：./run_dev_loop.sh 5  # 执行 5 次开发循环
 ################################################################################
 
-set -e  # 遇到错误立即退出
+# 不使用 set -e，因为我们需要自定义错误处理
+# set -e  # 遇到错误立即退出
 
 # 颜色定义
 RED='\033[0;31m'
@@ -112,17 +113,23 @@ start_server() {
 
     # 检查端口是否被占用
     if lsof -i ":${SERVER_PORT}" > /dev/null 2>&1; then
-        log_error "端口 ${SERVER_PORT} 已被占用"
+        log_warning "端口 ${SERVER_PORT} 已被占用"
         log_info "尝试终止占用端口的进程..."
-        lsof -ti ":${SERVER_PORT}" | xargs kill -9 2>/dev/null || true
-        sleep 2
+        local port_pid=$(lsof -ti ":${SERVER_PORT}" 2>/dev/null)
+        if [ -n "$port_pid" ]; then
+            kill -9 "$port_pid" 2>/dev/null || true
+            sleep 2
+            log_success "已终止占用端口的进程 (PID: ${port_pid})"
+        fi
     fi
 
     # 启动服务器（后台运行）
     cd "${PROJECT_DIR}"
-    nohup python main.py > "${LOG_DIR}/server_$(date +%Y%m%d_%H%M%S).log" 2>&1 &
+    local server_log="${LOG_DIR}/server_$(date +%Y%m%d_%H%M%S).log"
+    nohup python main.py > "${server_log}" 2>&1 &
     local server_pid=$!
     echo ${server_pid} > "${SERVER_PID_FILE}"
+    log_info "服务器进程已启动 (PID: ${server_pid}, 日志: ${server_log})"
 
     # 等待服务器启动
     log_info "等待服务器启动..."
@@ -137,8 +144,12 @@ start_server() {
         waited=$((waited + 1))
         echo -n "."
     done
+    echo ""
 
+    # 启动失败，显示日志
     log_error "服务器启动超时"
+    log_info "最近的日志输出:"
+    tail -n 20 "${server_log}" | tee -a "${LOG_FILE}"
     return 1
 }
 
@@ -156,7 +167,14 @@ stop_server() {
 
     local pid=$(cat "${SERVER_PID_FILE}")
     if ps -p "${pid}" > /dev/null 2>&1; then
-        kill ${pid}
+        kill ${pid} 2>/dev/null || true
+        sleep 1
+        # 如果进程还在运行，强制终止
+        if ps -p "${pid}" > /dev/null 2>&1; then
+            log_warning "服务器未响应，强制终止..."
+            kill -9 ${pid} 2>/dev/null || true
+            sleep 1
+        fi
         log_success "服务器已停止 (PID: ${pid})"
     else
         log_warning "服务器进程不存在 (PID: ${pid})"
@@ -171,11 +189,14 @@ stop_server() {
 
 check_server_health() {
     if ! curl -s "http://localhost:${SERVER_PORT}/api/health" > /dev/null 2>&1; then
-        log_error "服务器不健康，尝试重启..."
+        log_warning "服务器不健康，尝试重启..."
         stop_server
         sleep 2
-        start_server
-        return $?
+        if ! start_server; then
+            log_error "服务器重启失败"
+            return 1
+        fi
+        log_success "服务器重启成功"
     fi
     return 0
 }
@@ -193,33 +214,47 @@ run_claude_development() {
     # 记录开始时间
     local start_time=$(date +%s)
 
-    # 构建 Claude Code 命令
-    # 注意：以下参数根据 Claude Code CLI 的实际参数调整
-    local claude_args=(
-        --yes                    # 自动确认所有提示
-        --no-interactive         # 非交互模式
-        --allow-permissions      # 允许所有权限（文件读写、执行命令等）
-        --log-file "${LOG_DIR}/claude_${iteration}_$(date +%Y%m%d_%H%M%S).log"
-        --prompt "${INITIAL_PROMPT}"
-        "${PROJECT_DIR}"
-    )
+    # 检查 Claude Code 是否可用
+    if ! command -v ${CLAUDE_CMD} > /dev/null 2>&1; then
+        log_error "Claude Code CLI 未安装或不在 PATH 中"
+        log_info "请安装 Claude Code CLI: npm install -g @anthropic-ai/claude-code"
+        return 1
+    fi
 
-    log_info "执行命令: ${CLAUDE_CMD} ${claude_args[@]}"
+    # 构建 Claude Code 命令
+    # 使用 -p/--print 模式进行非交互式执行
+    log_info "执行 Claude Code..."
 
     # 执行 Claude Code
-    if ${CLAUDE_CMD} "${claude_args[@]}" >> "${LOG_FILE}" 2>&1; then
+    local claude_log="${LOG_DIR}/claude_${iteration}_$(date +%Y%m%d_%H%M%S).log"
+    if ${CLAUDE_CMD} -p --print "${INITIAL_PROMPT}" >> "${claude_log}" 2>&1; then
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         local minutes=$((duration / 60))
         local seconds=$((duration % 60))
 
         log_success "第 ${iteration} 轮开发完成 (耗时: ${minutes}分${seconds}秒)"
+        log_info "Claude Code 日志: ${claude_log}"
+
+        # 将 Claude Code 日志追加到主日志
+        cat "${claude_log}" >> "${LOG_FILE}" 2>&1 || true
+
         return 0
     else
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
+        local exit_code=$?
 
-        log_error "第 ${iteration} 轮开发失败 (耗时: ${duration}秒)"
+        log_error "第 ${iteration} 轮开发失败 (耗时: ${duration}秒, 退出码: ${exit_code})"
+        log_info "Claude Code 日志: ${claude_log}"
+
+        # 将 Claude Code 日志追加到主日志
+        cat "${claude_log}" >> "${LOG_FILE}" 2>&1 || true
+
+        # 显示最近的错误输出
+        log_info "最近的错误输出:"
+        tail -n 30 "${claude_log}" | tee -a "${LOG_FILE}"
+
         return 1
     fi
 }
@@ -240,6 +275,7 @@ commit_changes() {
         log_info "检测到代码变更，准备提交..."
 
         # 显示变更摘要
+        log_info "变更文件:"
         git status --short | tee -a "${LOG_FILE}"
 
         # 添加所有变更
@@ -256,15 +292,21 @@ Commit: $(date +'%Y-%m-%d %H:%M:%S')
 "
 
         # 提交变更
-        if git commit -m "${commit_msg}"; then
+        if git commit -m "${commit_msg}" >> "${LOG_FILE}" 2>&1; then
             log_success "代码变更已提交"
 
-            # 推送到远程仓库
-            log_info "推送到远程仓库..."
-            if git push origin main >> "${LOG_FILE}" 2>&1; then
-                log_success "代码已推送到远程仓库"
+            # 检查是否有远程仓库
+            if git remote get-url origin > /dev/null 2>&1; then
+                # 推送到远程仓库
+                log_info "推送到远程仓库..."
+                if git push origin main >> "${LOG_FILE}" 2>&1; then
+                    log_success "代码已推送到远程仓库"
+                else
+                    log_warning "推送失败，请稍后手动推送"
+                    log_info "可以使用以下命令手动推送: git push origin main"
+                fi
             else
-                log_warning "推送失败，请稍后手动推送"
+                log_warning "未配置远程仓库，跳过推送"
             fi
         else
             log_error "提交失败"
@@ -323,6 +365,12 @@ main() {
         exit 1
     fi
 
+    # 验证循环次数是正整数
+    if ! [[ "$1" =~ ^[0-9]+$ ]] || [ "$1" -lt 1 ]; then
+        log_error "循环次数必须是正整数"
+        exit 1
+    fi
+
     local total_iterations=$1
     local success_count=0
     local failure_count=0
@@ -339,6 +387,23 @@ main() {
     log_info "开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
     log_divider
     echo ""
+
+    # 检查 Python 是否安装
+    if ! command -v python > /dev/null 2>&1; then
+        log_error "Python 未安装或不在 PATH 中"
+        exit 1
+    fi
+
+    # 检查 main.py 是否存在
+    if [ ! -f "${PROJECT_DIR}/main.py" ]; then
+        log_error "未找到 main.py 文件"
+        exit 1
+    fi
+
+    # 检查 git 是否初始化
+    if [ ! -d "${PROJECT_DIR}/.git" ]; then
+        log_warning "Git 仓库未初始化，代码提交功能将不可用"
+    fi
 
     # 启动服务器
     if ! start_server; then
@@ -369,6 +434,7 @@ main() {
             commit_changes ${i}
         else
             failure_count=$((failure_count + 1))
+            log_warning "本轮开发失败，继续下一轮..."
         fi
 
         # 显示进度
@@ -405,8 +471,15 @@ main() {
     fi
 }
 
-# 捕获 Ctrl+C 信号
-trap 'log_warning "收到中断信号，停止服务器并退出..."; stop_server; exit 130' INT
+# 捕获信号
+cleanup_on_exit() {
+    local exit_code=$?
+    log_warning "收到退出信号 (退出码: ${exit_code})，停止服务器并清理..."
+    stop_server
+    exit ${exit_code}
+}
+
+trap cleanup_on_exit INT TERM
 
 # 运行主函数
 main "$@"

@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T13:43:41.911506",
+  "last_updated": "2026-03-21T13:46:05.029600",
   "features": [
     {
       "id": "feat-001",
@@ -143,9 +143,9 @@
         "6. 测试认证流程"
       ],
       "passes": true,
-      "notes": "已完成用户注册、登录API，JWT token管理，权限装饰器，前端登录页面。所有测试通过（19个测试用例）。",
+      "notes": "需要密码加密、会话管理",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T14:00:00.000000"
+      "updated_at": "2026-03-21T13:45:05.026482"
     },
     {
       "id": "feat-009",
@@ -276,7 +276,7 @@
       "priority": "medium",
       "title": "完善自动化开发循环脚本",
       "description": "测试并优化 automation/run_dev_loop.sh 脚本",
-      "status": "pending",
+      "status": "done",
       "assignee_role": "dev",
       "steps": [
         "1. 测试脚本路径解析",
@@ -286,10 +286,10 @@
         "5. 测试日志记录功能",
         "6. 优化错误处理"
       ],
-      "passes": false,
-      "notes": "需要 Claude Code CLI 安装",
+      "passes": true,
+      "notes": "已完成所有测试和优化。改进包括：更好的错误处理、增强的日志记录、服务器启动超时显示日志、Claude Code 检查、git 远程仓库检查、参数验证、信号处理优化。",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:21:35.556478"
+      "updated_at": "2026-03-21T13:55:00.000000"
     },
     {
       "id": "feat-016",
@@ -419,10 +419,10 @@
   "statistics": {
     "total": 20,
     "by_status": {
-      "pending": 10,
-      "in_progress": 1,
+      "pending": 9,
+      "in_progress": 0,
       "review": 0,
-      "done": 9
+      "done": 11
     },
     "by_priority": {
       "high": 4,
