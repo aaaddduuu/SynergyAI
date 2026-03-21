@@ -38,6 +38,28 @@
             to { transform: translateX(0); opacity: 1; }
         }
         .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin { animation: spin 1s linear infinite; }
+        @keyframes pulse-skeleton {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse-skeleton { animation: pulse-skeleton 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s infinite;
+        }
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .dark .skeleton {
+            background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%);
+            background-size: 200% 100%;
+        }
     </style>
     <title>AI 协作团队</title>
 </head>
@@ -125,6 +147,32 @@
                         <div id="taskList" class="space-y-2">
                             <div class="text-center py-4 text-slate-400 text-sm">暂无任务</div>
                         </div>
+                        <div id="taskListSkeleton" class="space-y-2 hidden">
+                            <div class="p-3 rounded-lg border-l-4 border-slate-200 bg-slate-50">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="skeleton h-3 w-12 rounded"></div>
+                                    <div class="skeleton h-3 w-8 rounded"></div>
+                                </div>
+                                <div class="skeleton h-4 w-full rounded mb-1"></div>
+                                <div class="skeleton h-3 w-20 rounded"></div>
+                            </div>
+                            <div class="p-3 rounded-lg border-l-4 border-slate-200 bg-slate-50">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="skeleton h-3 w-12 rounded"></div>
+                                    <div class="skeleton h-3 w-8 rounded"></div>
+                                </div>
+                                <div class="skeleton h-4 w-3/4 rounded mb-1"></div>
+                                <div class="skeleton h-3 w-16 rounded"></div>
+                            </div>
+                            <div class="p-3 rounded-lg border-l-4 border-slate-200 bg-slate-50">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="skeleton h-3 w-12 rounded"></div>
+                                    <div class="skeleton h-3 w-8 rounded"></div>
+                                </div>
+                                <div class="skeleton h-4 w-5/6 rounded mb-1"></div>
+                                <div class="skeleton h-3 w-20 rounded"></div>
+                            </div>
+                        </div>
                         <button onclick="showAddTaskModal()" class="w-full mt-4 flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-primary hover:border-primary transition-all text-sm font-medium">
                             <span class="material-symbols-outlined text-[18px]">add</span>
                             添加任务
@@ -169,6 +217,37 @@
                                 <button onclick="createSession()" class="px-8 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/25 hover:scale-[1.02] active:scale-[0.98] transition-all">
                                     创建新项目
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Message List Skeleton -->
+                    <div id="messageListSkeleton" class="space-y-6 hidden">
+                        <div class="flex items-start gap-4 max-w-[85%]">
+                            <div class="w-10 h-10 rounded-full skeleton flex-shrink-0"></div>
+                            <div class="flex-1 space-y-2">
+                                <div class="skeleton h-3 w-16 rounded"></div>
+                                <div class="skeleton h-4 w-full rounded"></div>
+                                <div class="skeleton h-4 w-3/4 rounded"></div>
+                                <div class="skeleton h-4 w-1/2 rounded"></div>
+                            </div>
+                        </div>
+                        <div class="flex flex-row-reverse items-start gap-4 max-w-[85%] ml-auto">
+                            <div class="w-10 h-10 rounded-full skeleton flex-shrink-0"></div>
+                            <div class="flex-1 space-y-2">
+                                <div class="flex justify-end">
+                                    <div class="skeleton h-3 w-12 rounded"></div>
+                                </div>
+                                <div class="skeleton h-4 w-full rounded"></div>
+                                <div class="skeleton h-4 w-2/3 rounded"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4 max-w-[85%]">
+                            <div class="w-10 h-10 rounded-full skeleton flex-shrink-0"></div>
+                            <div class="flex-1 space-y-2">
+                                <div class="skeleton h-3 w-20 rounded"></div>
+                                <div class="skeleton h-4 w-full rounded"></div>
+                                <div class="skeleton h-4 w-5/6 rounded"></div>
+                                <div class="skeleton h-4 w-1/3 rounded"></div>
                             </div>
                         </div>
                     </div>
@@ -401,6 +480,37 @@
 
     <!-- Toast Container -->
     <div id="toastContainer" class="fixed top-4 right-4 z-[60] space-y-2"></div>
+
+    <!-- Global Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4 border border-slate-200 dark:border-slate-800">
+            <div class="relative">
+                <div class="w-16 h-16 border-4 border-slate-200 dark:border-slate-700 rounded-full"></div>
+                <div class="absolute top-0 left-0 w-16 h-16 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
+            </div>
+            <p id="loadingText" class="text-slate-600 dark:text-slate-400 font-medium text-sm">加载中...</p>
+        </div>
+    </div>
+
+    <!-- Inline Loading Spinner -->
+    <div id="inlineLoading" class="hidden items-center justify-center gap-2 py-4">
+        <div class="w-5 h-5 border-2 border-slate-300 border-t-primary rounded-full animate-spin"></div>
+        <span class="text-sm text-slate-500">加载中...</span>
+    </div>
+
+    <!-- Progress Bar Modal -->
+    <div id="progressModal" class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 border border-slate-200 dark:border-slate-800">
+            <div class="flex items-center justify-between mb-4">
+                <h3 id="progressTitle" class="text-lg font-bold text-slate-900 dark:text-slate-100">处理中</h3>
+                <span id="progressPercent" class="text-sm font-semibold text-primary">0%</span>
+            </div>
+            <div class="w-full bg-slate-200 dark:bg-slate-700 h-3 rounded-full overflow-hidden mb-3">
+                <div id="progressBarFill" class="bg-gradient-to-r from-primary to-secondary h-full w-0 rounded-full transition-all duration-300"></div>
+            </div>
+            <p id="progressStatus" class="text-xs text-slate-500 dark:text-slate-400 text-center">正在处理...</p>
+        </div>
+    </div>
 
     <script>
         let currentSessionId = null;
@@ -1029,6 +1139,7 @@
         }
 
         async function loadTasks() {
+            showTaskListSkeleton();
             try {
                 const res = await fetch('/api/tasks');
                 const data = await res.json();
@@ -1037,6 +1148,7 @@
 
                 if (!data.tasks || data.tasks.length === 0) {
                     container.innerHTML = '<div class="text-center py-4 text-slate-400 text-sm">暂无任务</div>';
+                    hideTaskListSkeleton();
                     return;
                 }
 
@@ -1055,8 +1167,10 @@
                         </div>
                     `;
                 }).join('');
+                hideTaskListSkeleton();
             } catch (e) {
                 console.error('加载任务失败:', e);
+                hideTaskListSkeleton();
             }
         }
 
@@ -1095,18 +1209,22 @@
         }
 
         async function loadSession(sessionId) {
+            showLoadingOverlay('加载会话中...');
             try {
                 const res = await fetch(`/api/sessions/${sessionId}/load`, { method: 'POST' });
                 if (!res.ok) {
                     const err = await res.json();
+                    hideLoadingOverlay();
                     showToast('error', '加载失败', err.detail || '无法加载会话');
                     return;
                 }
                 const data = await res.json();
+                hideLoadingOverlay();
                 showToast('success', '加载成功', `已加载会话，包含 ${data.message_count} 条消息`);
                 loadSessionList();
                 loadTasks();
             } catch (e) {
+                hideLoadingOverlay();
                 showToast('error', '加载失败', e.message);
             }
         }
@@ -1115,7 +1233,7 @@
             const title = document.getElementById('taskTitle').value.trim();
             const description = document.getElementById('taskDesc').value.trim();
             const assigneeRole = document.getElementById('taskAssignee').value;
-            
+
             const priorityEl = document.querySelector('input[name="priority"]:checked');
             const priority = priorityEl ? priorityEl.value : 'medium';
 
@@ -1126,7 +1244,11 @@
                 return;
             }
 
+            showProgressModal('创建任务', 10);
+
             try {
+                updateProgress(30, '正在验证数据...');
+
                 const res = await fetch('/api/tasks', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -1140,12 +1262,21 @@
 
                 console.log('Add task response:', res.status, res.ok);
 
+                updateProgress(60, '正在保存任务...');
+
                 if (res.ok) {
                     const data = await res.json();
                     console.log('Task created:', data);
+
+                    updateProgress(90, '正在刷新列表...');
+
                     hideAddTaskModal();
-                    loadTasks();
+                    await loadTasks();
                     updateProgress();
+
+                    updateProgress(100, '任务创建完成');
+                    autoHideProgressModal(300);
+
                     showToast('success', '成功', `任务 "${title}" 已创建`);
                     document.getElementById('taskTitle').value = '';
                     document.getElementById('taskDesc').value = '';
@@ -1153,10 +1284,12 @@
                 } else {
                     const err = await res.json();
                     console.error('Error:', err);
+                    hideProgressModal();
                     showToast('error', '添加失败', err.detail || '未知错误');
                 }
             } catch (e) {
                 console.error('Exception:', e);
+                hideProgressModal();
                 showToast('error', '添加失败', e.message);
             }
         }
@@ -1275,6 +1408,97 @@
             if (e.key === 'Enter') {
                 sendMessage();
             }
+        }
+
+        // ==================== Loading State Functions ====================
+
+        function showLoadingOverlay(text = '加载中...') {
+            const overlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
+            loadingText.textContent = text;
+            overlay.classList.remove('hidden');
+        }
+
+        function hideLoadingOverlay() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.add('hidden');
+        }
+
+        function showInlineLoading(containerId = 'inlineLoading') {
+            const loading = document.getElementById(containerId);
+            if (loading) {
+                loading.classList.remove('hidden');
+                loading.classList.add('flex');
+            }
+        }
+
+        function hideInlineLoading(containerId = 'inlineLoading') {
+            const loading = document.getElementById(containerId);
+            if (loading) {
+                loading.classList.add('hidden');
+                loading.classList.remove('flex');
+            }
+        }
+
+        function showTaskListSkeleton() {
+            document.getElementById('taskList').classList.add('hidden');
+            document.getElementById('taskListSkeleton').classList.remove('hidden');
+        }
+
+        function hideTaskListSkeleton() {
+            document.getElementById('taskListSkeleton').classList.add('hidden');
+            document.getElementById('taskList').classList.remove('hidden');
+        }
+
+        function showMessageListSkeleton() {
+            document.getElementById('emptyState')?.classList.add('hidden');
+            document.getElementById('messageListSkeleton').classList.remove('hidden');
+        }
+
+        function hideMessageListSkeleton() {
+            document.getElementById('messageListSkeleton').classList.add('hidden');
+        }
+
+        let progressModalTimeout = null;
+
+        function showProgressModal(title = '处理中', initialPercent = 0) {
+            const modal = document.getElementById('progressModal');
+            document.getElementById('progressTitle').textContent = title;
+            document.getElementById('progressPercent').textContent = initialPercent + '%';
+            document.getElementById('progressBarFill').style.width = initialPercent + '%';
+            document.getElementById('progressStatus').textContent = '正在处理...';
+            modal.classList.remove('hidden');
+        }
+
+        function updateProgress(percent, status = null) {
+            const progressBarFill = document.getElementById('progressBarFill');
+            const progressPercent = document.getElementById('progressPercent');
+            const progressStatus = document.getElementById('progressStatus');
+
+            progressBarFill.style.width = Math.min(100, Math.max(0, percent)) + '%';
+            progressPercent.textContent = Math.round(Math.min(100, Math.max(0, percent))) + '%';
+
+            if (status) {
+                progressStatus.textContent = status;
+            }
+        }
+
+        function hideProgressModal() {
+            const modal = document.getElementById('progressModal');
+            modal.classList.add('hidden');
+            if (progressModalTimeout) {
+                clearTimeout(progressModalTimeout);
+                progressModalTimeout = null;
+            }
+        }
+
+        function autoHideProgressModal(delay = 500) {
+            if (progressModalTimeout) {
+                clearTimeout(progressModalTimeout);
+            }
+            progressModalTimeout = setTimeout(() => {
+                hideProgressModal();
+            }, delay);
         }
 
         // Initialize WebSocket connection on page load
