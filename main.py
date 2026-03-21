@@ -2645,6 +2645,260 @@ async def import_plugin(plugin_data: Dict[str, Any], request: Request):
     }
 
 
+# ============ Statistics API ============
+
+@app.get("/api/statistics/tasks", tags=["statistics"], summary="获取任务统计", description="获取任务统计数据")
+@log_request
+async def get_task_statistics():
+    """获取任务统计
+
+    返回任务统计数据，包括按状态、负责人角色、优先级分布等。
+    """
+    global current_session
+
+    if not current_session:
+        return {
+            "total": 0,
+            "by_state": {},
+            "by_assignee_role": {},
+            "by_priority": {},
+            "completion_rate": 0.0,
+            "avg_completion_time_hours": 0.0,
+            "created_today": 0,
+            "completed_today": 0
+        }
+
+    tasks = list(current_session.tasks.values())
+
+    # Group by state
+    by_state = {}
+    for task in tasks:
+        state = task.state
+        by_state[state] = by_state.get(state, 0) + 1
+
+    # Group by assignee role
+    by_assignee_role = {}
+    for task in tasks:
+        role = task.assignee_role.value if task.assignee_role else "unassigned"
+        by_assignee_role[role] = by_assignee_role.get(role, 0) + 1
+
+    # Group by priority
+    by_priority = {}
+    for task in tasks:
+        priority = task.priority
+        by_priority[priority] = by_priority.get(priority, 0) + 1
+
+    # Calculate completion rate
+    total = len(tasks)
+    done = len([t for t in tasks if t.state == "done"])
+    completion_rate = (done / total * 100) if total > 0 else 0.0
+
+    # Calculate average completion time
+    completed_tasks = [t for t in tasks if t.state == "done"]
+    avg_completion_time_hours = 0.0
+    if completed_tasks:
+        total_hours = sum(
+            (t.updated_at - t.created_at).total_seconds() / 3600
+            for t in completed_tasks
+        )
+        avg_completion_time_hours = total_hours / len(completed_tasks)
+
+    # Count tasks created/completed today
+    today = datetime.now().date()
+    created_today = len([t for t in tasks if t.created_at.date() == today])
+    completed_today = len([t for t in tasks if t.state == "done" and t.updated_at.date() == today])
+
+    return {
+        "total": total,
+        "by_state": by_state,
+        "by_assignee_role": by_assignee_role,
+        "by_priority": by_priority,
+        "completion_rate": round(completion_rate, 2),
+        "avg_completion_time_hours": round(avg_completion_time_hours, 2),
+        "created_today": created_today,
+        "completed_today": completed_today
+    }
+
+
+@app.get("/api/statistics/agents", tags=["statistics"], summary="获取 Agent 统计", description="获取 Agent 效率统计数据")
+@log_request
+async def get_agent_statistics():
+    """获取 Agent 统计
+
+    返回 Agent 效率统计数据，包括消息数量、任务完成情况等。
+    """
+    global current_session
+
+    if not current_session:
+        return {
+            "total": 0,
+            "by_role": {},
+            "message_counts": {},
+            "task_completion_rates": {},
+            "active_agents": 0
+        }
+
+    agents = list(current_session.agents.values())
+    tasks = list(current_session.tasks.values())
+
+    # Group by role
+    by_role = {}
+    for agent in agents:
+        role = agent.role.value
+        by_role[role] = by_role.get(role, 0) + 1
+
+    # Message counts per agent
+    message_counts = {}
+    for agent in agents:
+        message_counts[agent.id] = agent.message_count
+
+    # Task completion rates per role
+    task_completion_rates = {}
+    for role in by_role.keys():
+        role_tasks = [t for t in tasks if t.assignee_role and t.assignee_role.value == role]
+        if role_tasks:
+            done = len([t for t in role_tasks if t.state == "done"])
+            rate = (done / len(role_tasks) * 100)
+            task_completion_rates[role] = round(rate, 2)
+
+    # Count active agents
+    active_agents = len([a for a in agents if a.is_active])
+
+    return {
+        "total": len(agents),
+        "by_role": by_role,
+        "message_counts": message_counts,
+        "task_completion_rates": task_completion_rates,
+        "active_agents": active_agents
+    }
+
+
+@app.get("/api/statistics/timeline", tags=["statistics"], summary="获取时间线数据", description="获取任务和活动的时间线数据")
+@log_request
+async def get_timeline_data(days: int = 7):
+    """获取时间线数据
+
+    返回指定天数内的任务和活动时间线数据。
+    """
+    global current_session
+
+    if not current_session:
+        return {
+            "dates": [],
+            "tasks_created": [],
+            "tasks_completed": [],
+            "messages_sent": []
+        }
+
+    # Calculate date range
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=days)
+
+    # Initialize date buckets
+    dates = []
+    tasks_created = []
+    tasks_completed = []
+    messages_sent = []
+
+    for i in range(days):
+        date = start_date + timedelta(days=i)
+        date_str = date.strftime("%Y-%m-%d")
+        dates.append(date_str)
+
+        # Count tasks created on this date
+        created_count = len([
+            t for t in current_session.tasks.values()
+            if t.created_at.date() == date.date()
+        ])
+        tasks_created.append(created_count)
+
+        # Count tasks completed on this date
+        completed_count = len([
+            t for t in current_session.tasks.values()
+            if t.state == "done" and t.updated_at.date() == date.date()
+        ])
+        tasks_completed.append(completed_count)
+
+        # Count messages sent on this date
+        message_count = len([
+            m for m in current_session.messages
+            if m.timestamp.date() == date.date()
+        ])
+        messages_sent.append(message_count)
+
+    return {
+        "dates": dates,
+        "tasks_created": tasks_created,
+        "tasks_completed": tasks_completed,
+        "messages_sent": messages_sent
+    }
+
+
+@app.get("/api/statistics/summary", tags=["statistics"], summary="获取统计摘要", description="获取整体统计摘要")
+@log_request
+async def get_statistics_summary():
+    """获取统计摘要
+
+    返回整体统计摘要，包括任务、Agent、会话等关键指标。
+    """
+    global current_session
+
+    if not current_session:
+        return {
+            "tasks": {"total": 0, "done": 0, "in_progress": 0, "completion_rate": 0},
+            "agents": {"total": 0, "active": 0},
+            "messages": {"total": 0, "today": 0},
+            "session": {"turn_count": 0, "duration_hours": 0}
+        }
+
+    tasks = list(current_session.tasks.values())
+    agents = list(current_session.agents.values())
+    messages = current_session.messages
+
+    # Task summary
+    tasks_total = len(tasks)
+    tasks_done = len([t for t in tasks if t.state == "done"])
+    tasks_in_progress = len([t for t in tasks if t.state == "in_progress"])
+    tasks_completion_rate = (tasks_done / tasks_total * 100) if tasks_total > 0 else 0
+
+    # Agent summary
+    agents_total = len(agents)
+    agents_active = len([a for a in agents if a.is_active])
+
+    # Message summary
+    messages_total = len(messages)
+    today = datetime.now().date()
+    messages_today = len([m for m in messages if m.timestamp.date() == today])
+
+    # Session summary
+    session_turn_count = current_session.turn_count
+    session_duration_hours = 0.0
+    if current_session.created_at:
+        duration = datetime.now() - current_session.created_at
+        session_duration_hours = duration.total_seconds() / 3600
+
+    return {
+        "tasks": {
+            "total": tasks_total,
+            "done": tasks_done,
+            "in_progress": tasks_in_progress,
+            "completion_rate": round(tasks_completion_rate, 2)
+        },
+        "agents": {
+            "total": agents_total,
+            "active": agents_active
+        },
+        "messages": {
+            "total": messages_total,
+            "today": messages_today
+        },
+        "session": {
+            "turn_count": session_turn_count,
+            "duration_hours": round(session_duration_hours, 2)
+        }
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

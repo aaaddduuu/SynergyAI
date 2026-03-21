@@ -2217,4 +2217,361 @@ touchStyles.textContent = `
 `;
 document.head.appendChild(touchStyles);
 
-});
+
+// ============ Statistics Charts ============
+
+// Chart instances
+let taskStateChart = null;
+let taskPriorityChart = null;
+let agentWorkloadChart = null;
+let agentEfficiencyChart = null;
+let timelineChart = null;
+
+// Show statistics modal
+async function showStatisticsModal() {
+    const modal = document.getElementById('statisticsModal');
+    modal.classList.remove('hidden');
+
+    // Load and render statistics
+    await loadStatisticsData();
+}
+
+// Close statistics modal
+function closeStatisticsModal() {
+    const modal = document.getElementById('statisticsModal');
+    modal.classList.add('hidden');
+}
+
+// Load statistics data from API
+async function loadStatisticsData() {
+    try {
+        // Fetch all statistics in parallel
+        const [summary, tasksStats, agentsStats, timelineData] = await Promise.all([
+            fetch('/api/statistics/summary').then(r => r.json()),
+            fetch('/api/statistics/tasks').then(r => r.json()),
+            fetch('/api/statistics/agents').then(r => r.json()),
+            fetch('/api/statistics/timeline?days=7').then(r => r.json())
+        ]);
+
+        // Update summary cards
+        updateSummaryCards(summary);
+
+        // Render all charts
+        renderTaskStateChart(tasksStats.by_state);
+        renderTaskPriorityChart(tasksStats.by_priority);
+        renderAgentWorkloadChart(tasksStats.by_assignee_role);
+        renderAgentEfficiencyChart(agentsStats.task_completion_rates);
+        renderTimelineChart(timelineData);
+
+    } catch (error) {
+        console.error('Failed to load statistics:', error);
+        showToast('error', '加载统计失败', error.message);
+    }
+}
+
+// Update summary cards
+function updateSummaryCards(summary) {
+    document.getElementById('statTotalTasks').textContent = summary.tasks.total;
+    document.getElementById('statCompletionRate').textContent = summary.tasks.completion_rate + '%';
+    document.getElementById('statAgentCount').textContent = summary.agents.total;
+    document.getElementById('statMessageCount').textContent = summary.messages.total;
+}
+
+// Render task state distribution pie chart
+function renderTaskStateChart(byState) {
+    const ctx = document.getElementById('taskStateChart').getContext('2d');
+
+    // Destroy existing chart if it exists
+    if (taskStateChart) {
+        taskStateChart.destroy();
+    }
+
+    const labels = {
+        'pending': '待处理',
+        'in_progress': '进行中',
+        'review': '审核中',
+        'done': '已完成',
+        'blocked': '已阻塞'
+    };
+
+    const data = {
+        labels: Object.keys(byState).map(key => labels[key] || key),
+        datasets: [{
+            data: Object.values(byState),
+            backgroundColor: [
+                '#94a3b8', // pending - slate
+                '#667aea', // in_progress - primary
+                '#f59e0b', // review - amber
+                '#10b981', // done - emerald
+                '#ef4444'  // blocked - red
+            ],
+            borderWidth: 2,
+            borderColor: '#ffffff'
+        }]
+    };
+
+    taskStateChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true,
+                        font: {
+                            size: 12
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Render task priority distribution pie chart
+function renderTaskPriorityChart(byPriority) {
+    const ctx = document.getElementById('taskPriorityChart').getContext('2d');
+
+    // Destroy existing chart if it exists
+    if (taskPriorityChart) {
+        taskPriorityChart.destroy();
+    }
+
+    const labels = {
+        'low': '低',
+        'medium': '中',
+        'high': '高'
+    };
+
+    const data = {
+        labels: Object.keys(byPriority).map(key => labels[key] || key),
+        datasets: [{
+            data: Object.values(byPriority),
+            backgroundColor: [
+                '#94a3b8', // low - slate
+                '#f59e0b', // medium - amber
+                '#ef4444'  // high - red
+            ],
+            borderWidth: 2,
+            borderColor: '#ffffff'
+        }]
+    };
+
+    taskPriorityChart = new Chart(ctx, {
+        type: 'pie',
+        data: data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true,
+                        font: {
+                            size: 12
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Render agent workload bar chart
+function renderAgentWorkloadChart(byAssigneeRole) {
+    const ctx = document.getElementById('agentWorkloadChart').getContext('2d');
+
+    // Destroy existing chart if it exists
+    if (agentWorkloadChart) {
+        agentWorkloadChart.destroy();
+    }
+
+    const roleLabels = {
+        'hr': 'HR',
+        'pm': 'PM',
+        'ba': 'BA',
+        'dev': '开发',
+        'qa': '测试',
+        'architect': '架构师',
+        'unassigned': '未分配'
+    };
+
+    const labels = Object.keys(byAssigneeRole).map(key => roleLabels[key] || key);
+    const data = Object.values(byAssigneeRole);
+
+    agentWorkloadChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '任务数量',
+                data: data,
+                backgroundColor: '#667aea',
+                borderColor: '#667aea',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+// Render agent efficiency bar chart
+function renderAgentEfficiencyChart(completionRates) {
+    const ctx = document.getElementById('agentEfficiencyChart').getContext('2d');
+
+    // Destroy existing chart if it exists
+    if (agentEfficiencyChart) {
+        agentEfficiencyChart.destroy();
+    }
+
+    const roleLabels = {
+        'hr': 'HR',
+        'pm': 'PM',
+        'ba': 'BA',
+        'dev': '开发',
+        'qa': '测试',
+        'architect': '架构师'
+    };
+
+    const labels = Object.keys(completionRates).map(key => roleLabels[key] || key);
+    const data = Object.values(completionRates);
+
+    agentEfficiencyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '完成率 (%)',
+                data: data,
+                backgroundColor: data.map(rate => {
+                    if (rate >= 80) return '#10b981'; // emerald
+                    if (rate >= 50) return '#f59e0b'; // amber
+                    return '#ef4444'; // red
+                }),
+                borderColor: data.map(rate => {
+                    if (rate >= 80) return '#10b981';
+                    if (rate >= 50) return '#f59e0b';
+                    return '#ef4444';
+                }),
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+// Render timeline line chart
+function renderTimelineChart(timelineData) {
+    const ctx = document.getElementById('timelineChart').getContext('2d');
+
+    // Destroy existing chart if it exists
+    if (timelineChart) {
+        timelineChart.destroy();
+    }
+
+    // Format dates to MM-DD
+    const formattedDates = timelineData.dates.map(dateStr => {
+        const date = new Date(dateStr);
+        return `${date.getMonth() + 1}/${date.getDate()}`;
+    });
+
+    timelineChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: formattedDates,
+            datasets: [
+                {
+                    label: '创建任务',
+                    data: timelineData.tasks_created,
+                    borderColor: '#667aea',
+                    backgroundColor: 'rgba(102, 122, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: '完成任务',
+                    data: timelineData.tasks_completed,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: '发送消息',
+                    data: timelineData.messages_sent,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true,
+                        font: {
+                            size: 12
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
