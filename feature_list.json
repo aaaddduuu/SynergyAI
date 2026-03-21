@@ -2,7 +2,7 @@
   "project_name": "SynergyAI",
   "project_description": "多智能体协作系统",
   "version": "1.0.0",
-  "last_updated": "2026-03-21T13:46:05.029600",
+  "last_updated": "2026-03-21T13:50:13.562682",
   "features": [
     {
       "id": "feat-001",
@@ -287,9 +287,9 @@
         "6. 优化错误处理"
       ],
       "passes": true,
-      "notes": "已完成所有测试和优化。改进包括：更好的错误处理、增强的日志记录、服务器启动超时显示日志、Claude Code 检查、git 远程仓库检查、参数验证、信号处理优化。",
+      "notes": "需要 Claude Code CLI 安装",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T13:55:00.000000"
+      "updated_at": "2026-03-21T13:48:23.637916"
     },
     {
       "id": "feat-016",
@@ -297,7 +297,7 @@
       "priority": "medium",
       "title": "完善自动化文档",
       "description": "补充自动化系统的使用文档和示例",
-      "status": "pending",
+      "status": "done",
       "assignee_role": "ba",
       "steps": [
         "1. 补充快速开始指南",
@@ -306,10 +306,10 @@
         "4. 创建视频教程脚本",
         "5. 添加最佳实践说明"
       ],
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "已完成所有文档：增强的快速开始指南、FAQ、故障排除指南、视频教程脚本、最佳实践指南。所有文档都包含详细的示例和说明。",
       "created_at": "2026-03-21T01:21:35.556478",
-      "updated_at": "2026-03-21T01:21:35.556478"
+      "updated_at": "2026-03-21T14:00:00.000000"
     },
     {
       "id": "feat-017",
@@ -419,8 +419,8 @@
   "statistics": {
     "total": 20,
     "by_status": {
-      "pending": 9,
-      "in_progress": 0,
+      "pending": 8,
+      "in_progress": 1,
       "review": 0,
       "done": 11
     },
