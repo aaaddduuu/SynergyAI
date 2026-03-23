@@ -24,11 +24,12 @@ MODEL_OPTIONS = {
         "claude-3-haiku-20240307",
     ],
     "zhipu": [
-        "glm-4",
+        "glm-4.7",
         "glm-4-plus",
         "glm-4-flash",
         "glm-4-air",
         "glm-4-airx",
+        "glm-4",
         "glm-3-turbo",
     ],
     "custom": [
@@ -45,8 +46,8 @@ PROVIDER_BASE_URLS = {
 
 @dataclass
 class ModelConfig:
-    provider: str = "openai"
-    model: str = "gpt-4o"
+    provider: str = "zhipu"
+    model: str = "glm-4.7"
     api_key: str = ""
     base_url: str = ""
     temperature: float = 0.7
@@ -56,8 +57,8 @@ class ModelConfig:
 @dataclass
 class AgentModelConfig:
     role: str
-    provider: str = "openai"
-    model: str = "gpt-4o"
+    provider: str = "zhipu"
+    model: str = "glm-4.7"
     api_key: str = ""
     base_url: str = ""
     temperature: float = 0.7

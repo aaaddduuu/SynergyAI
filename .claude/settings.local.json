@@ -22,7 +22,10 @@
       "Bash(dir:*)",
       "Bash(netstat:*)",
       "Bash(taskkill:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git rev-list:*)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)"
     ]
   }
 }

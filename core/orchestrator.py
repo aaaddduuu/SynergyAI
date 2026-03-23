@@ -24,25 +24,24 @@ class AgentState(TypedDict):
 
 
 class MultiAgentOrchestrator:
-    def __init__(self, llm=None, model: str = "gpt-4", api_key: str = None, base_url: str = None, project_dir: str = None):
+    def __init__(self, llm=None, model: str = "glm-4.7", provider: str = "zhipu", api_key: str = None, base_url: str = None, project_dir: str = None):
         self.model = model
+        self.provider = provider
         self.api_key = api_key
         self.base_url = base_url
 
         if llm:
             self.llm = llm
         else:
-            if base_url:
-                self.llm = ChatOpenAI(
-                    model=model,
-                    api_key=api_key or "dummy",
-                    base_url=base_url
-                )
-            else:
-                self.llm = ChatOpenAI(
-                    model=model,
-                    api_key=api_key or "sk-dummy"
-                )
+            from core.model_config import ModelConfig, create_llm_for_config
+
+            config = ModelConfig(
+                provider=provider,
+                model=model,
+                api_key=api_key or "",
+                base_url=base_url or ""
+            )
+            self.llm = create_llm_for_config(config)
 
         # 初始化功能清单
         self.feature_list = FeatureList(project_dir)

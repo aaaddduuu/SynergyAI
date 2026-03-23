@@ -86,6 +86,15 @@ class RateLimitConfig:
 class RateLimiter:
     """Rate Limiter - 防止 DDoS 和暴力破解"""
 
+    # Rate limiting 白名单路径
+    WHITELIST = {
+        "/api/auth/csrf-token",
+        "/api/health",
+        "/api/performance",
+        "/api/features",
+        "/login",
+    }
+
     def __init__(self):
         # 存储每个 IP/用户的请求记录
         self._requests: Dict[str, List[float]] = defaultdict(list)
@@ -98,6 +107,13 @@ class RateLimiter:
         # 清理间隔（秒）
         self.cleanup_interval = 300  # 5分钟
         self._last_cleanup = time.time()
+
+    def _is_whitelisted(self, path: str) -> bool:
+        """检查路径是否在白名单中"""
+        for whitelist_path in self.WHITELIST:
+            if path.startswith(whitelist_path):
+                return True
+        return False
 
     def _get_key(self, request: Request) -> str:
         """获取限制键（IP 或用户 ID）"""
@@ -143,6 +159,10 @@ class RateLimiter:
 
     def check_rate_limit(self, request: Request) -> tuple[bool, Optional[str]]:
         """检查是否超过 rate limit"""
+        # 检查是否在白名单中
+        if self._is_whitelisted(request.url.path):
+            return True, None
+
         self._cleanup_old_requests()
 
         key = self._get_key(request)

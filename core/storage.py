@@ -337,6 +337,7 @@ Session ID: {self.id}
 class Storage:
     def __init__(self, db_path: str = "data/workspace.db"):
         self.db_path = db_path
+        self.data_dir = str(Path(db_path).parent)
         self._local = threading.local()
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()

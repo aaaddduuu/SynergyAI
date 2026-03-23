@@ -12,6 +12,66 @@ let isCreatingSession = false;
 let allTeams = [];
 let allProjects = [];
 
+// CSRF Token Management
+let csrfToken = null;
+let csrfTokenPromise = null;
+
+/**
+ * 获取 CSRF Token
+ * 防止并发请求，确保同一时间只有一个请求在获取 token
+ */
+async function getCsrfToken() {
+    // 如果已有 token，直接返回
+    if (csrfToken) {
+        return csrfToken;
+    }
+
+    // 如果正在获取 token，等待完成
+    if (csrfTokenPromise) {
+        return csrfTokenPromise;
+    }
+
+    // 获取 token
+    csrfTokenPromise = (async () => {
+        try {
+            const response = await fetch('/api/auth/csrf-token');
+            if (!response.ok) {
+                throw new Error('Failed to fetch CSRF token');
+            }
+            const data = await response.json();
+            csrfToken = data.csrf_token;
+
+            // 设置 session_id cookie（如果后端返回了）
+            if (data.session_id) {
+                document.cookie = `session_id=${data.session_id}; path=/; SameSite=Lax`;
+            }
+
+            return csrfToken;
+        } catch (error) {
+            console.error('Error fetching CSRF token:', error);
+            csrfToken = null;
+            throw error;
+        } finally {
+            csrfTokenPromise = null;
+        }
+    })();
+
+    return csrfTokenPromise;
+}
+
+/**
+ * 创建带有认证头的 fetch headers
+ * 自动包含 CSRF token
+ */
+async function createAuthHeaders(headers = {}) {
+    const csrf = await getCsrfToken();
+    return {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrf,
+        ...headers
+    };
+}
+
 const agentNames = {
     'hr': 'HR',
     'pm': '项目经理',
@@ -204,11 +264,13 @@ const agentRoleNames = {
 const modelOptions = {
     'openai': ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
     'anthropic': ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
-    'zhipu': ['glm-4', 'glm-4-plus', 'glm-4-flash', 'glm-4-air', 'glm-4-airx', 'glm-3-turbo'],
+    'zhipu': ['glm-4.7', 'glm-4-plus', 'glm-4-flash', 'glm-4-air', 'glm-4-airx', 'glm-4', 'glm-3-turbo'],
     'custom': ['custom']
 };
 
 let currentConfig = null;
+let currentFullApiKey = '';  // 存储完整的 API key 用于显示切换
+let isApiKeyVisible = false;  // API key 是否可见
 
 function updateModelOptions() {
     const provider = document.getElementById('providerSelect').value;
@@ -218,7 +280,14 @@ function updateModelOptions() {
     modelSelect.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
 }
 
-function showConfigModal() {
+async function showConfigModal() {
+    // 预获取 CSRF token，避免用户点击保存时才获取
+    try {
+        await getCsrfToken();
+    } catch (e) {
+        console.error('Failed to pre-fetch CSRF token:', e);
+    }
+
     loadConfig();
     document.getElementById('configModal').classList.remove('hidden');
 }
@@ -231,27 +300,34 @@ async function loadConfig() {
         }
         const data = await res.json();
 
-        const defaultCfg = (data && data.default) ? data.default : { provider: 'openai', model: 'gpt-4o', base_url: '' };
+        const defaultCfg = (data && data.default) ? data.default : { provider: 'zhipu', model: 'glm-4.7', base_url: '' };
         const agentsCfg = (data && data.agents) ? data.agents : {};
 
         currentConfig = data;
 
-        document.getElementById('providerSelect').value = defaultCfg.provider || 'openai';
+        document.getElementById('providerSelect').value = defaultCfg.provider || 'zhipu';
         updateModelOptions();
-        document.getElementById('modelSelect').value = defaultCfg.model || 'gpt-4o';
-        document.getElementById('apiKeyInput').value = '';
+        document.getElementById('modelSelect').value = defaultCfg.model || 'glm-4.7';
+
+        // 显示掩码的 API key
+        currentFullApiKey = '';  // 重置完整 API key
+        isApiKeyVisible = false;  // 重置为隐藏状态
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        apiKeyInput.type = 'password';
+        apiKeyInput.value = defaultCfg.api_key_masked || '';
+
         document.getElementById('baseUrlInput').value = defaultCfg.base_url || '';
 
         renderAgentConfigs(agentsCfg);
     } catch (e) {
         console.error('Failed to load config:', e);
         currentConfig = {
-            default: { provider: 'openai', model: 'gpt-4o', base_url: '' },
+            default: { provider: 'zhipu', model: 'glm-4.7', base_url: '' },
             agents: {}
         };
-        document.getElementById('providerSelect').value = 'openai';
+        document.getElementById('providerSelect').value = 'zhipu';
         updateModelOptions();
-        document.getElementById('modelSelect').value = 'gpt-4o';
+        document.getElementById('modelSelect').value = 'glm-4.7';
         renderAgentConfigs({});
     }
 }
@@ -292,16 +368,16 @@ function renderAgentConfigs(agentConfigs) {
                         <div>
                             <label class="text-xs text-slate-500">供应商</label>
                             <select id="agent-provider-${role}" class="w-full h-9 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" onchange="updateAgentModels('${role}')">
+                                <option value="zhipu" selected>智谱AI</option>
                                 <option value="openai">OpenAI</option>
                                 <option value="anthropic">Anthropic</option>
-                                <option value="zhipu">智谱AI</option>
                                 <option value="custom">自定义</option>
                             </select>
                         </div>
                         <div>
                             <label class="text-xs text-slate-500">模型</label>
                             <select id="agent-model-${role}" class="w-full h-9 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                                ${modelOptions['openai'].map(m => `<option value="${m}">${m}</option>`).join('')}
+                                ${modelOptions['zhipu'].map(m => `<option value="${m}">${m}</option>`).join('')}
                             </select>
                         </div>
                         <div class="col-span-2">
@@ -342,16 +418,16 @@ function renderAgentConfigs(agentConfigs) {
                     <div>
                         <label class="text-xs text-slate-500">供应商</label>
                         <select id="agent-provider-${role}" class="w-full h-9 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" onchange="updateAgentModels('${role}')">
+                            <option value="zhipu" ${config.provider === 'zhipu' ? 'selected' : ''}>智谱AI</option>
                             <option value="openai" ${config.provider === 'openai' ? 'selected' : ''}>OpenAI</option>
                             <option value="anthropic" ${config.provider === 'anthropic' ? 'selected' : ''}>Anthropic</option>
-                            <option value="zhipu" ${config.provider === 'zhipu' ? 'selected' : ''}>智谱AI</option>
                             <option value="custom" ${config.provider === 'custom' ? 'selected' : ''}>自定义</option>
                         </select>
                     </div>
                     <div>
                         <label class="text-xs text-slate-500">模型</label>
                         <select id="agent-model-${role}" class="w-full h-9 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                            ${(modelOptions[config.provider] || modelOptions['openai']).map(m =>
+                            ${(modelOptions[config.provider] || modelOptions['zhipu']).map(m =>
                                 `<option value="${m}" ${config.model === m ? 'selected' : ''}>${m}</option>`
                             ).join('')}
                         </select>
@@ -416,9 +492,11 @@ async function saveAllConfig() {
     const baseUrl = document.getElementById('baseUrlInput').value;
 
     try {
+        const headers = await createAuthHeaders();
+
         const res = await fetch('/api/config', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: headers,
             body: JSON.stringify({
                 provider,
                 model,
@@ -454,7 +532,7 @@ async function saveAllConfig() {
         if (configs.length > 0) {
             await fetch('/api/config/agents', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: headers,
                 body: JSON.stringify({ configs })
             });
         }
@@ -464,6 +542,55 @@ async function saveAllConfig() {
     } catch (e) {
         showToast('error', '保存失败', e.message);
     }
+}
+
+function toggleApiKeyVisibility(event) {
+    // 如果事件对象存在，阻止默认行为和冒泡
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    console.log('toggleApiKeyVisibility called');
+
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    const toggleBtn = document.getElementById('toggleApiKeyBtn');
+
+    if (!apiKeyInput || !toggleBtn) {
+        console.error('API key input or toggle button not found');
+        return;
+    }
+
+    if (isApiKeyVisible) {
+        // 当前是可见状态，切换到隐藏
+        if (currentFullApiKey) {
+            // 如果用户输入了新的 API key，切换回掩码显示
+            const masked = maskApiKey(currentFullApiKey);
+            apiKeyInput.value = masked;
+        }
+        apiKeyInput.type = 'password';
+        toggleBtn.textContent = '👁️';
+        toggleBtn.title = '显示 API Key';
+        isApiKeyVisible = false;
+        console.log('API key hidden');
+    } else {
+        // 当前是隐藏状态，切换到可见
+        apiKeyInput.type = 'text';
+        toggleBtn.textContent = '🙈';
+        toggleBtn.title = '隐藏 API Key';
+        isApiKeyVisible = true;
+        console.log('API key visible');
+    }
+}
+
+function maskApiKey(apiKey) {
+    if (!apiKey || apiKey.length < 8) {
+        return apiKey;
+    }
+    const prefix = apiKey.substring(0, 4);
+    const suffix = apiKey.substring(apiKey.length - 4);
+    const maskedLength = apiKey.length - 8;
+    return prefix + '*'.repeat(maskedLength) + suffix;
 }
 
 function hideConfigModal() {
@@ -502,15 +629,18 @@ function selectAgent(agent) {
 }
 
 async function saveConfig() {
+    const provider = document.getElementById('providerSelect').value;
     const model = document.getElementById('modelSelect').value;
     const apiKey = document.getElementById('apiKeyInput').value;
     const baseUrl = document.getElementById('baseUrlInput').value;
 
     try {
+        const headers = await createAuthHeaders();
+
         const res = await fetch('/api/config', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({model, api_key: apiKey, base_url: baseUrl})
+            headers: headers,
+            body: JSON.stringify({provider, model, api_key: apiKey, base_url: baseUrl})
         });
 
         if (res.ok) {
@@ -569,6 +699,13 @@ function sendMessage() {
     const sendBtn = document.getElementById('sendBtn');
     const sendIcon = document.getElementById('sendIcon');
     const sendText = document.getElementById('sendText');
+
+    // 检查必需的 DOM 元素是否存在
+    if (!input || !sendBtn || !sendIcon) {
+        console.error('Required DOM elements not found');
+        return;
+    }
+
     let message = input.value.trim();
 
     if (!message) return;
@@ -579,7 +716,7 @@ function sendMessage() {
 
     sendBtn.disabled = true;
     sendIcon.textContent = '⏳';
-    sendText.textContent = '处理中';
+    if (sendText) sendText.textContent = '处理中';
 
     if (selectedAgent) {
         message = `[${agentNames[selectedAgent]}] ${message}`;
@@ -594,8 +731,9 @@ function sendMessage() {
 
     setTimeout(() => {
         sendBtn.disabled = false;
-        sendIcon.textContent = 'send';
-        sendText.textContent = '发送';
+        sendIcon.textContent = '➤';
+        if (sendText) sendText.textContent = '发送';
+        hideTyping();
     }, 3000);
 }
 
@@ -605,17 +743,30 @@ function handleTyping() {
 }
 
 function showTyping() {
-    document.getElementById('typingIndicator').classList.remove('hidden');
-    const messagesDiv = document.getElementById('messages');
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    const typingIndicator = document.getElementById('typingIndicator');
+    if (typingIndicator) {
+        typingIndicator.classList.remove('hidden');
+        const messagesDiv = document.getElementById('messages');
+        if (messagesDiv) {
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    }
 }
 
 function hideTyping() {
-    document.getElementById('typingIndicator').classList.add('hidden');
+    const typingIndicator = document.getElementById('typingIndicator');
+    if (typingIndicator) {
+        typingIndicator.classList.add('hidden');
+    }
 }
 
 function addMessage(type, sender, content) {
     const messagesDiv = document.getElementById('messages');
+
+    if (!messagesDiv) {
+        console.error('Messages container not found');
+        return;
+    }
 
     const emptyState = document.getElementById('emptyState');
     if (emptyState) {
@@ -756,7 +907,12 @@ async function loadSessionList() {
 async function loadSession(sessionId) {
     showLoadingOverlay('加载会话中...');
     try {
-        const res = await fetch(`/api/sessions/${sessionId}/load`, { method: 'POST' });
+        const headers = await createAuthHeaders();
+
+        const res = await fetch(`/api/sessions/${sessionId}/load`, {
+            method: 'POST',
+            headers: headers
+        });
         if (!res.ok) {
             const err = await res.json();
             hideLoadingOverlay();
@@ -794,9 +950,11 @@ async function addTask() {
     try {
         updateProgress(30, '正在验证数据...');
 
+        const headers = await createAuthHeaders();
+
         const res = await fetch('/api/tasks', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: headers,
             body: JSON.stringify({
                 title,
                 description,
@@ -1666,6 +1824,10 @@ function createSessionWithTeamProject(teamId, projectId) {
 
 window.addEventListener('DOMContentLoaded', () => {
     console.log('Page loaded, initializing...');
+
+    // 预获取 CSRF token
+    getCsrfToken().catch(error => console.error('Failed to init CSRF token:', error));
+
     connectWebSocket();
     initAuth().catch(error => console.error('initAuth failed:', error));
 
@@ -1901,12 +2063,13 @@ async function savePlugin(event, pluginId) {
         const url = pluginId ? `/api/plugins/${pluginId}` : '/api/plugins';
         const method = pluginId ? 'PUT' : 'POST';
 
+        const headers = await createAuthHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+
         const response = await fetch(url, {
             method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: headers,
             body: JSON.stringify(pluginData)
         });
 
@@ -1962,11 +2125,13 @@ async function deletePlugin(pluginId) {
 
     try {
         const token = localStorage.getItem('token');
+        const headers = await createAuthHeaders({
+            'Authorization': `Bearer ${token}`
+        });
+
         const response = await fetch(`/api/plugins/${pluginId}`, {
             method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
+            headers: headers
         });
 
         if (!response.ok) {
@@ -2030,12 +2195,13 @@ async function importPlugin() {
             const pluginData = JSON.parse(text);
 
             const token = localStorage.getItem('token');
+            const headers = await createAuthHeaders({
+                'Authorization': `Bearer ${token}`
+            });
+
             const response = await fetch('/api/plugins/import', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: headers,
                 body: JSON.stringify(pluginData)
             });
 
@@ -2202,9 +2368,24 @@ function initMobileSupport() {
 
 // 页面加载完成后初始化移动端支持
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMobileSupport);
+    document.addEventListener('DOMContentLoaded', () => {
+        initMobileSupport();
+        initApiKeyInputListener();
+    });
 } else {
     initMobileSupport();
+    initApiKeyInputListener();
+}
+
+// 初始化 API key 输入框监听器
+function initApiKeyInputListener() {
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    if (apiKeyInput) {
+        apiKeyInput.addEventListener('input', (e) => {
+            // 当用户输入时，保存完整值
+            currentFullApiKey = e.target.value;
+        });
+    }
 }
 
 // 添加触摸设备CSS样式

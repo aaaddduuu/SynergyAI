@@ -7,10 +7,10 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator, ConfigDict
 from typing import Optional, List, Dict, Any, Set
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 import time
 from collections import defaultdict
@@ -46,6 +46,29 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("ai_coworker")
+
+
+# ============ 工具函数 ============
+
+def mask_api_key(api_key: str) -> str:
+    """
+    掩码 API key，只显示前4位和后4位
+
+    Args:
+        api_key: API key 字符串
+
+    Returns:
+        掩码后的 API key，例如 "sk-1a...xyz9"
+    """
+    if not api_key or len(api_key) < 8:
+        return ""
+
+    # 显示前4位和后4位，中间用星号代替
+    prefix = api_key[:4]
+    suffix = api_key[-4:]
+    masked_length = len(api_key) - 8
+
+    return f"{prefix}{'*' * masked_length}{suffix}"
 
 
 # ============ 性能监控 ============
@@ -173,7 +196,8 @@ class UserRegister(BaseModel):
     password: str
     role: str = "user"
 
-    @validator('username')
+    @field_validator('username')
+    @classmethod
     def validate_username(cls, v):
         if not (3 <= len(v) <= 50):
             raise ValueError('用户名长度必须在3-50个字符之间')
@@ -181,19 +205,22 @@ class UserRegister(BaseModel):
             raise ValueError('用户名只能包含字母、数字、下划线和连字符')
         return v
 
-    @validator('email')
+    @field_validator('email')
+    @classmethod
     def validate_email(cls, v):
         if '@' not in v or '.' not in v.split('@')[-1]:
             raise ValueError('邮箱格式不正确')
         return v
 
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_password(cls, v):
         if len(v) < 6:
             raise ValueError('密码长度至少为6个字符')
         return v
 
-    @validator('role')
+    @field_validator('role')
+    @classmethod
     def validate_role(cls, v):
         valid_roles = ['admin', 'user', 'guest']
         if v not in valid_roles:
@@ -365,6 +392,12 @@ app = FastAPI(
 )
 
 
+# ============ 静态文件挂载（必须在中间件之前）============
+
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+
+
 # ============ 安全配置 ============
 
 # CORS 配置（使用配置化的允许列表）
@@ -409,10 +442,6 @@ async def performance_middleware(request: Request, call_next):
 
     return response
 
-
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
-
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 storage = Storage()
 orchestrator: Optional[MultiAgentOrchestrator] = None
@@ -569,7 +598,8 @@ class ChatRequest(BaseModel):
     api_key: Optional[str] = None
     base_url: Optional[str] = None
 
-    @validator('message')
+    @field_validator('message')
+    @classmethod
     def validate_message(cls, v):
         if not v or not v.strip():
             raise ValueError("消息不能为空")
@@ -577,8 +607,8 @@ class ChatRequest(BaseModel):
             raise ValueError("消息长度不能超过10000字符")
         return v.strip()
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message": "请帮我设计一个用户认证系统",
                 "model": "gpt-4o",
@@ -586,6 +616,7 @@ class ChatRequest(BaseModel):
                 "base_url": "https://api.openai.com/v1"
             }
         }
+    )
 
 
 class TaskCreate(BaseModel):
@@ -599,7 +630,8 @@ class TaskCreate(BaseModel):
     assignee_role: Optional[str] = None
     priority: str = "medium"
 
-    @validator('title')
+    @field_validator('title')
+    @classmethod
     def validate_title(cls, v):
         if not v or not v.strip():
             raise ValueError("任务标题不能为空")
@@ -607,14 +639,15 @@ class TaskCreate(BaseModel):
             raise ValueError("任务标题不能超过200字符")
         return v.strip()
 
-    @validator('priority')
+    @field_validator('priority')
+    @classmethod
     def validate_priority(cls, v):
         if v not in ['low', 'medium', 'high']:
             raise ValueError("优先级必须是 low, medium 或 high")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "title": "实现用户登录功能",
                 "description": "包括用户注册、登录、密码重置等功能",
@@ -623,6 +656,7 @@ class TaskCreate(BaseModel):
                 "priority": "high"
             }
         }
+    )
 
 
 class TaskUpdate(BaseModel):
@@ -638,26 +672,29 @@ class TaskUpdate(BaseModel):
     priority: Optional[str] = None
     notes: Optional[List[str]] = None
 
-    @validator('state')
+    @field_validator('state')
+    @classmethod
     def validate_state(cls, v):
         if v and v not in ['pending', 'in_progress', 'review', 'done', 'blocked']:
             raise ValueError("无效的任务状态")
         return v
 
-    @validator('priority')
+    @field_validator('priority')
+    @classmethod
     def validate_priority(cls, v):
         if v and v not in ['low', 'medium', 'high']:
             raise ValueError("优先级必须是 low, medium 或 high")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "state": "in_progress",
                 "priority": "high",
                 "notes": ["正在开发中", "预计本周完成"]
             }
         }
+    )
 
 
 class ConfigRequest(BaseModel):
@@ -665,21 +702,22 @@ class ConfigRequest(BaseModel):
 
     用于配置系统默认的 LLM 模型
     """
-    provider: str = "openai"
-    model: str = "gpt-4o"
+    provider: str = "zhipu"
+    model: str = "glm-4.7"
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     temperature: float = 0.7
 
-    @validator('provider')
+    @field_validator('provider')
+    @classmethod
     def validate_provider(cls, v):
         allowed = ['openai', 'anthropic', 'zhipu', 'custom']
         if v not in allowed:
             raise ValueError(f"Provider must be one of: {allowed}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "provider": "openai",
                 "model": "gpt-4o",
@@ -688,6 +726,7 @@ class ConfigRequest(BaseModel):
                 "temperature": 0.7
             }
         }
+    )
 
 
 class AgentConfigRequest(BaseModel):
@@ -696,28 +735,30 @@ class AgentConfigRequest(BaseModel):
     为特定角色的智能体配置 LLM 模型
     """
     role: str
-    provider: str = "openai"
-    model: str = "gpt-4o"
+    provider: str = "zhipu"
+    model: str = "glm-4.7"
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     temperature: float = 0.7
 
-    @validator('role')
+    @field_validator('role')
+    @classmethod
     def validate_role(cls, v):
         allowed = ['hr', 'pm', 'ba', 'dev', 'qa', 'architect']
         if v not in allowed:
             raise ValueError(f"Role must be one of: {allowed}")
         return v
 
-    @validator('provider')
+    @field_validator('provider')
+    @classmethod
     def validate_provider(cls, v):
         allowed = ['openai', 'anthropic', 'zhipu', 'custom']
         if v not in allowed:
             raise ValueError(f"Provider must be one of: {allowed}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "role": "dev",
                 "provider": "openai",
@@ -726,6 +767,7 @@ class AgentConfigRequest(BaseModel):
                 "temperature": 0.7
             }
         }
+    )
 
 
 class BatchConfigRequest(BaseModel):
@@ -735,8 +777,8 @@ class BatchConfigRequest(BaseModel):
     """
     configs: List[AgentConfigRequest]
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "configs": [
                     {
@@ -752,6 +794,7 @@ class BatchConfigRequest(BaseModel):
                 ]
             }
         }
+    )
 
 
 class TeamCreate(BaseModel):
@@ -759,7 +802,8 @@ class TeamCreate(BaseModel):
     name: str
     description: str = ""
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         if not v or not v.strip():
             raise ValueError("团队名称不能为空")
@@ -767,13 +811,14 @@ class TeamCreate(BaseModel):
             raise ValueError("团队名称不能超过100字符")
         return v.strip()
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "开发团队",
                 "description": "主要负责产品开发"
             }
         }
+    )
 
 
 class TeamUpdate(BaseModel):
@@ -788,7 +833,8 @@ class ProjectCreate(BaseModel):
     name: str
     description: str = ""
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         if not v or not v.strip():
             raise ValueError("项目名称不能为空")
@@ -796,14 +842,15 @@ class ProjectCreate(BaseModel):
             raise ValueError("项目名称不能超过100字符")
         return v.strip()
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "team_id": "team-123",
                 "name": "AI助手项目",
                 "description": "开发智能协作助手"
             }
         }
+    )
 
 
 class ProjectUpdate(BaseModel):
@@ -966,10 +1013,11 @@ async def get_config():
 
         # 构建默认配置响应（确保所有字段都有值）
         default_response = {
-            "provider": default_config.provider or "openai",
-            "model": default_config.model or "gpt-4o",
+            "provider": default_config.provider or "zhipu",
+            "model": default_config.model or "glm-4.7",
             "base_url": default_config.base_url or "",
             "temperature": default_config.temperature or 0.7,
+            "api_key_masked": mask_api_key(default_config.api_key) if default_config.api_key else "",
             "has_api_key": bool(default_config.api_key)
         }
 
@@ -979,19 +1027,21 @@ async def get_config():
             config = model_config_manager.get_agent_config(role)
             if config:
                 agent_configs[role] = {
-                    "provider": config.provider or "openai",
-                    "model": config.model or "gpt-4o",
+                    "provider": config.provider or "zhipu",
+                    "model": config.model or "glm-4.7",
                     "base_url": config.base_url or "",
                     "temperature": config.temperature or 0.7,
+                    "api_key_masked": mask_api_key(config.api_key) if config.api_key else "",
                     "has_api_key": bool(config.api_key)
                 }
             else:
                 # 如果该角色没有配置，使用默认配置
                 agent_configs[role] = {
-                    "provider": default_config.provider or "openai",
-                    "model": default_config.model or "gpt-4o",
+                    "provider": default_config.provider or "zhipu",
+                    "model": default_config.model or "glm-4.7",
                     "base_url": default_config.base_url or "",
                     "temperature": default_config.temperature or 0.7,
+                    "api_key_masked": "",
                     "has_api_key": bool(default_config.api_key)
                 }
 
@@ -1011,10 +1061,11 @@ async def get_config():
         # 返回安全的默认配置
         return {
             "default": {
-                "provider": "openai",
-                "model": "gpt-4o",
+                "provider": "zhipu",
+                "model": "glm-4.7",
                 "base_url": "",
                 "temperature": 0.7,
+                "api_key_masked": "",
                 "has_api_key": False
             },
             "agents": {},
@@ -1153,6 +1204,32 @@ async def handle_websocket_message(data: dict, websocket: WebSocket):
             current_session = session
             storage.save_session(session)
             logger.info(f"Session created: {session.id} (team: {team_id}, project: {project_id})")
+
+            # 初始化 orchestrator
+            try:
+                config = model_config_manager.get_default_config()
+                if not config.api_key:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": "请先配置 LLM API Key"
+                    }, websocket)
+                    return
+
+                orchestrator = MultiAgentOrchestrator(
+                    model=config.model,
+                    provider=config.provider,
+                    api_key=config.api_key,
+                    base_url=config.base_url,
+                    project_dir=storage.data_dir
+                )
+                logger.info(f"Orchestrator initialized: {config.provider}/{config.model}")
+            except Exception as e:
+                logger.error(f"Failed to initialize orchestrator: {str(e)}")
+                await manager.send_personal_message({
+                    "type": "error",
+                    "message": f"初始化 LLM 失败: {str(e)}"
+                }, websocket)
+                return
 
             await manager.send_personal_message({
                 "type": "session_created",
@@ -2360,8 +2437,8 @@ class PluginCreate(BaseModel):
     metadata: Dict[str, Any] = {}
     author: str = ""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "数据分析师",
                 "description": "专门进行数据分析和可视化的智能体",
@@ -2375,6 +2452,7 @@ class PluginCreate(BaseModel):
                 "author": "admin"
             }
         }
+    )
 
 
 class PluginUpdate(BaseModel):
